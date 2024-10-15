@@ -25,7 +25,7 @@ fn main() -> Result<()> {
     let speed = bytes as f64 / elapsed;
     println!(
         "writen {} bytes in {:.6} seconds @ {}/s",
-        bytes,
+        ISizeFormatter::new(bytes, BINARY),
         elapsed,
         ISizeFormatter::new(speed, BINARY),
     );
