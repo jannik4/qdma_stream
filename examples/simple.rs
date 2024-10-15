@@ -6,8 +6,8 @@ use std::{io::Write, time::Instant};
 fn main() -> Result<()> {
     let mut stream = HostToCardStream::new(
         "/dev/qdmac1000-ST-0",
-        4096,
-        4096,
+        4096 * 100,
+        4096 * 50,
         std::time::Duration::from_secs(1),
     )?;
 
