@@ -4,10 +4,15 @@ use qdma_stream::HostToCardStream;
 use std::{io::Write, thread, time::Instant};
 
 fn main() -> Result<()> {
+    let mut threads = Vec::new();
     for queue in 0..4 {
-        thread::spawn(move || {
+        threads.push(thread::spawn(move || {
             write_to_queue(queue).unwrap();
-        });
+        }));
+    }
+
+    for t in threads {
+        t.join().unwrap();
     }
 
     Ok(())
