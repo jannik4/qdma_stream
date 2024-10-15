@@ -8,7 +8,7 @@ fn main() -> Result<()> {
         "/dev/qdmac1000-ST-0",
         4096 * 2000,
         4096 * 1000,
-        std::time::Duration::from_secs(1),
+        std::time::Duration::from_millis(10),
     )?;
 
     let buf = vec![0; 4096];
