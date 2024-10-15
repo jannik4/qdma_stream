@@ -34,7 +34,8 @@ fn write_to_queue(queue: u32) -> Result<()> {
     let bytes = count * buf.len();
     let speed = bytes as f64 / elapsed;
     println!(
-        "writen {} bytes in {:.6} seconds @ {}/s",
+        "queue({}): writen {} bytes in {:.6} seconds @ {}/s",
+        queue,
         ISizeFormatter::new(bytes, BINARY),
         elapsed,
         ISizeFormatter::new(speed, BINARY),
