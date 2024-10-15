@@ -1,6 +1,7 @@
 use anyhow::Result;
+use humansize::{ISizeFormatter, BINARY};
 use qdma_stream::HostToCardStream;
-use std::io::Write;
+use std::{io::Write, time::Instant};
 
 fn main() -> Result<()> {
     let mut stream = HostToCardStream::new(
@@ -11,10 +12,23 @@ fn main() -> Result<()> {
     )?;
 
     let buf = vec![0; 4096];
+    let count = 1000;
 
-    for _ in 0..1000 {
+    let start = Instant::now();
+    for _ in 0..count {
         stream.write_all(&buf)?;
     }
+    stream.flush()?;
+    let elapsed = start.elapsed().as_secs_f64();
+
+    let bytes = count * buf.len();
+    let speed = bytes as f64 / elapsed;
+    println!(
+        "writen {} bytes in {:.6} seconds @ {}/s",
+        bytes,
+        elapsed,
+        ISizeFormatter::new(speed, BINARY),
+    );
 
     Ok(())
 }
