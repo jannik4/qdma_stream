@@ -1,11 +1,21 @@
 use anyhow::Result;
 use humansize::{ISizeFormatter, BINARY};
 use qdma_stream::HostToCardStream;
-use std::{io::Write, time::Instant};
+use std::{io::Write, thread, time::Instant};
 
 fn main() -> Result<()> {
+    for queue in 0..4 {
+        thread::spawn(move || {
+            write_to_queue(queue).unwrap();
+        });
+    }
+
+    Ok(())
+}
+
+fn write_to_queue(queue: u32) -> Result<()> {
     let mut stream = HostToCardStream::new(
-        "/dev/qdmac1000-ST-0",
+        format!("/dev/qdmac1000-ST-{}", queue),
         4096 * 2000,
         4096 * 1000,
         std::time::Duration::from_millis(10),
