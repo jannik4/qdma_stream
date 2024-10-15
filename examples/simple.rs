@@ -12,7 +12,7 @@ fn main() -> Result<()> {
     )?;
 
     let buf = vec![0; 4096];
-    let count = 1000;
+    let count = 100_000;
 
     let start = Instant::now();
     for _ in 0..count {
