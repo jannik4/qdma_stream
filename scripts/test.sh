@@ -17,11 +17,7 @@ echo
 
 # H2C Rust
 echo "### Run H2C Rust ###"
-(
-    cd ..
-    cargo build -r --example simple
-    ./target/release/examples/simple
-)
+../target/release/examples/simple
 echo
 
 # C2H
@@ -31,6 +27,7 @@ dma-from-device -d /dev/qdmac1000-ST-1 -s 4096 -c 262144 &
 dma-from-device -d /dev/qdmac1000-ST-2 -s 4096 -c 262144 &
 dma-from-device -d /dev/qdmac1000-ST-3 -s 4096 -c 262144 &
 wait
+echo
 
 echo "### Stopping ###"
 ./stop.sh
