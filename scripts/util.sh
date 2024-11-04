@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Exit
 exit 0
 
 # Write/Read
