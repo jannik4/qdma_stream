@@ -4,8 +4,13 @@ use qdma_stream::HostToCardStream;
 use std::{io::Write, thread, time::Instant};
 
 fn main() -> Result<()> {
+    let count = std::env::args()
+        .nth(1)
+        .unwrap_or("4".to_string())
+        .parse::<u32>()?;
+
     let mut threads = Vec::new();
-    for queue in 0..4 {
+    for queue in 0..count {
         threads.push(thread::spawn(move || {
             write_to_queue(queue).unwrap();
         }));

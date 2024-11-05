@@ -1,23 +1,18 @@
 #!/bin/bash
 
-# H2C
-dma-ctl qdmac1000 q stop idx 0 dir h2c
-dma-ctl qdmac1000 q stop idx 1 dir h2c
-dma-ctl qdmac1000 q stop idx 2 dir h2c
-dma-ctl qdmac1000 q stop idx 3 dir h2c
+# Set default count to 4 if not provided
+count=${1:-4}
 
-dma-ctl qdmac1000 q del idx 0 dir h2c
-dma-ctl qdmac1000 q del idx 1 dir h2c
-dma-ctl qdmac1000 q del idx 2 dir h2c
-dma-ctl qdmac1000 q del idx 3 dir h2c
+echo "### Stopping ${count} queues ###"
 
-# C2H
-dma-ctl qdmac1000 q stop idx 0 dir c2h
-dma-ctl qdmac1000 q stop idx 1 dir c2h
-dma-ctl qdmac1000 q stop idx 2 dir c2h
-dma-ctl qdmac1000 q stop idx 3 dir c2h
+# H2C (Host to Card)
+for (( i=0; i<count; i++ )); do
+    dma-ctl qdmac1000 q stop idx $i dir h2c
+    dma-ctl qdmac1000 q del idx $i dir h2c
+done
 
-dma-ctl qdmac1000 q del idx 0 dir c2h
-dma-ctl qdmac1000 q del idx 1 dir c2h
-dma-ctl qdmac1000 q del idx 2 dir c2h
-dma-ctl qdmac1000 q del idx 3 dir c2h
+# C2H (Card to Host)
+for (( i=0; i<count; i++ )); do
+    dma-ctl qdmac1000 q stop idx $i dir c2h
+    dma-ctl qdmac1000 q del idx $i dir c2h
+done
