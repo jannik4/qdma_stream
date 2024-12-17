@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::{fs, io::Read};
 
 pub struct CardToHostStream {
@@ -13,25 +13,16 @@ impl CardToHostStream {
     }
 
     pub fn next_packet(&mut self, buf: &mut [u8; 4096]) -> Result<Option<()>> {
-        match self.file.read(buf)? {
-            0 => Ok(None),
-            4096 => {
-                if buf.starts_with(&CTRL_SEQ) {
-                    match self.file.read(buf)? {
-                        4096 => {
-                            if buf.starts_with(&CTRL_SEQ) {
-                                Ok(Some(()))
-                            } else {
-                                Ok(None)
-                            }
-                        }
-                        count => Err(anyhow!("read {} bytes, expect 4096 bytes", count)),
-                    }
-                } else {
-                    Ok(Some(()))
-                }
+        self.file.read_exact(buf)?;
+        if buf.starts_with(&CTRL_SEQ) {
+            self.file.read_exact(buf)?;
+            if buf.starts_with(&CTRL_SEQ) {
+                Ok(Some(()))
+            } else {
+                Ok(None)
             }
-            count => Err(anyhow!("read {} bytes, expect 4096 bytes", count)),
+        } else {
+            Ok(Some(()))
         }
     }
 }
