@@ -26,16 +26,15 @@ fn main() -> Result<()> {
 fn read_from_queue(queue: u32) -> Result<()> {
     let mut stream = CardToHostStream::new(format!("/dev/qdmac1000-ST-{}", queue))?;
 
-    let mut buf = vec![0; 4096].try_into().unwrap();
     let count = 100_000;
 
     let start = Instant::now();
     for _ in 0..count {
-        stream.next_packet(&mut buf)?;
+        stream.next_packet()?;
     }
     let elapsed = start.elapsed().as_secs_f64();
 
-    let bytes = count * buf.len();
+    let bytes = count * CardToHostStream::PACKET_SIZE;
     let speed = bytes as f64 / elapsed;
     println!(
         "queue({}): read {} bytes in {:.6} seconds @ {}/s",
