@@ -22,7 +22,7 @@ echo
 
 # H2C Rust
 echo "### Run H2C Rust ###"
-../target/release/examples/simple $count_h2c
+../target/release/examples/h2c_simple $count_h2c
 echo
 
 # C2H
@@ -31,6 +31,11 @@ for (( i=0; i<count_c2h; i++ )); do
     dma-from-device -d /dev/qdmac1000-ST-$i -s 4096 -c 262144 &
 done
 wait
+echo
+
+# C2H Rust
+echo "### Run C2H Rust ###"
+../target/release/examples/c2h_simple $count_c2h
 echo
 
 # Stop queues
