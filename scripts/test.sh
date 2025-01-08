@@ -38,5 +38,10 @@ echo "### Run C2H Rust ###"
 ../target/release/examples/c2h_simple $count_c2h
 echo
 
+# C2H Rust Async
+echo "### Run C2H Rust Asyn ###"
+../target/release/examples/c2h_async_simple $count_c2h
+echo
+
 # Stop queues
 ./stop.sh $count_h2c $count_c2h
