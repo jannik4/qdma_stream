@@ -71,15 +71,17 @@ impl Test {
             }
         }
 
-        monoio::start::<monoio::IoUringDriver, _>(async move {
-            let tasks = tasks.into_iter().map(monoio::spawn).collect::<Vec<_>>();
+        if self.read_async {
+            monoio::start::<monoio::IoUringDriver, _>(async move {
+                let tasks = tasks.into_iter().map(monoio::spawn).collect::<Vec<_>>();
 
-            for t in tasks {
-                t.await?;
-            }
+                for t in tasks {
+                    t.await?;
+                }
 
-            Ok::<_, anyhow::Error>(())
-        })?;
+                Ok::<_, anyhow::Error>(())
+            })?;
+        }
         for t in threads {
             t.join().unwrap()?;
         }
