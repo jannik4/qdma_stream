@@ -21,7 +21,14 @@ impl CardToHostStream {
         Ok(Self { file, ptr })
     }
 
-    pub fn next_packet(&mut self) -> Result<Option<&[u8]>> {
+    pub fn next_packet(&mut self) -> Result<&[u8]> {
+        let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
+
+        self.file.read_exact(slice)?;
+        Ok(slice)
+    }
+
+    pub fn next_packet_or_ctrl_seq(&mut self) -> Result<Option<&[u8]>> {
         let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
 
         self.file.read_exact(slice)?;
