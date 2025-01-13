@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.88"
-monoio = "0.2.4"
+monoio = { version = "0.2.4", features = ["sync"] }
 
 [dev-dependencies]
 humansize = "2.1.3"

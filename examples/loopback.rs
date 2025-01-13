@@ -45,6 +45,7 @@ impl Test {
         println!("Queue start: {}", self.queue_start);
         println!("Queue count: {}", self.queue_count);
         println!("Number of packets: {}", self.num_packets);
+        println!("Is async: {}", self.is_async);
 
         println!("----- STARTING QUEUES -----");
         for dir in [ctl::QueueDir::C2h, ctl::QueueDir::H2c] {
@@ -71,9 +72,14 @@ impl Test {
             }
         }
 
-        for t in threads {
-            t.join().unwrap()?;
-        }
+        monoio::blocking::spawn_blocking(move || {
+            for t in threads {
+                t.join().unwrap()?;
+            }
+            Ok::<_, anyhow::Error>(())
+        })
+        .await
+        .unwrap()?;
         for t in tasks {
             t.await?;
         }
