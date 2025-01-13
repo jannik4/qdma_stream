@@ -11,7 +11,7 @@ pub struct CardToHostStreamAsync {
 }
 
 impl CardToHostStreamAsync {
-    pub const PACKET_SIZE: usize = 4_096_000;
+    pub const PACKET_SIZE: usize = 4096;
     const ALIGN: usize = 4096;
 
     pub async fn new(path: impl AsRef<std::path::Path>) -> Result<Self> {

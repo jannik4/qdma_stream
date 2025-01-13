@@ -30,7 +30,7 @@ async fn main_() -> Result<()> {
 async fn read_from_queue(queue: u32) -> Result<()> {
     let mut stream = CardToHostStreamAsync::new(format!("/dev/qdmac1000-ST-{}", queue)).await?;
 
-    let count = 100;
+    let count = 1000;
 
     let start = Instant::now();
     for _ in 0..count {

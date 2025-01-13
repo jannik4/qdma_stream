@@ -1,12 +1,16 @@
 use anyhow::Result;
 use humansize::{ISizeFormatter, BINARY};
-use qdma_stream::{ctl, CardToHostStream, HostToCardStream};
+use qdma_stream::{ctl, CardToHostStream, CardToHostStreamAsync, HostToCardStream};
 use std::{io::Write, thread, time::Instant};
 
-fn main() -> Result<()> {
-    Test::new(0, 1, 1000).run()?;
-    Test::new(0, 1, 100_000).run()?;
-    Test::new(0, 4, 100_000).run()?;
+#[monoio::main]
+async fn main() -> Result<()> {
+    Test::new(0, 1, 1000, false).run().await?;
+    Test::new(0, 1, 100_000, false).run().await?;
+    Test::new(0, 4, 100_000, false).run().await?;
+
+    Test::new(0, 1, 1000, true).run().await?;
+    Test::new(0, 4, 1000, true).run().await?;
 
     Ok(())
 }
@@ -15,20 +19,22 @@ struct Test {
     queue_start: usize,
     queue_count: usize,
     num_packets: usize,
+    is_async: bool,
     needs_clean_up: bool,
 }
 
 impl Test {
-    fn new(queue_start: usize, queue_count: usize, num_packets: usize) -> Self {
+    fn new(queue_start: usize, queue_count: usize, num_packets: usize, is_async: bool) -> Self {
         Self {
             queue_start,
             queue_count,
             num_packets,
+            is_async,
             needs_clean_up: false,
         }
     }
 
-    fn run(mut self) -> Result<()> {
+    async fn run(mut self) -> Result<()> {
         self.needs_clean_up = true;
 
         println!("----------------------------------------------------------------");
@@ -49,17 +55,27 @@ impl Test {
         }
 
         let mut threads = Vec::new();
+        let mut tasks = Vec::new();
         for queue in self.queue_start..self.queue_start + self.queue_count {
             threads.push(thread::spawn(move || {
                 write_to_queue(queue, self.num_packets)
             }));
-            threads.push(thread::spawn(move || {
-                read_from_queue(queue, self.num_packets)
-            }));
+            if self.is_async {
+                tasks.push(monoio::spawn(async move {
+                    read_from_queue_async(queue, self.num_packets).await
+                }));
+            } else {
+                threads.push(thread::spawn(move || {
+                    read_from_queue(queue, self.num_packets)
+                }));
+            }
         }
 
         for t in threads {
             t.join().unwrap()?;
+        }
+        for t in tasks {
+            t.await?;
         }
 
         self.stop_queues()?;
@@ -151,6 +167,28 @@ fn read_from_queue(queue: usize, num_packets: usize) -> Result<()> {
     let elapsed = start.elapsed().as_secs_f64();
 
     let bytes = num_packets * CardToHostStream::PACKET_SIZE;
+    let speed = bytes as f64 / elapsed;
+    println!(
+        "queue({}): read {} bytes in {:.6} seconds @ {}/s",
+        queue,
+        ISizeFormatter::new(bytes, BINARY),
+        elapsed,
+        ISizeFormatter::new(speed, BINARY),
+    );
+
+    Ok(())
+}
+
+async fn read_from_queue_async(queue: usize, num_packets: usize) -> Result<()> {
+    let mut stream = CardToHostStreamAsync::new(format!("/dev/qdmac1000-ST-{}", queue)).await?;
+
+    let start = Instant::now();
+    for _ in 0..num_packets {
+        stream.next_packet().await?;
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+
+    let bytes = num_packets * CardToHostStreamAsync::PACKET_SIZE;
     let speed = bytes as f64 / elapsed;
     println!(
         "queue({}): read {} bytes in {:.6} seconds @ {}/s",
