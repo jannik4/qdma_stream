@@ -72,7 +72,7 @@ impl Test {
         }
 
         if self.read_async {
-            monoio::start::<monoio::IoUringDriver, _>(async move {
+            monoio::start::<monoio::LegacyDriver, _>(async move {
                 let tasks = tasks.into_iter().map(monoio::spawn).collect::<Vec<_>>();
 
                 for t in tasks {
