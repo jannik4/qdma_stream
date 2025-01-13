@@ -3,14 +3,13 @@ use humansize::{ISizeFormatter, BINARY};
 use qdma_stream::{ctl, CardToHostStream, CardToHostStreamAsync, HostToCardStream};
 use std::{io::Write, thread, time::Instant};
 
-#[monoio::main]
-async fn main() -> Result<()> {
-    Test::new(0, 1, 1000, false).run().await?;
-    Test::new(0, 1, 100_000, false).run().await?;
-    Test::new(0, 4, 100_000, false).run().await?;
+fn main() -> Result<()> {
+    Test::new(0, 1, 1000, false).run()?;
+    Test::new(0, 1, 100_000, false).run()?;
+    Test::new(0, 4, 100_000, false).run()?;
 
-    Test::new(0, 1, 1000, true).run().await?;
-    Test::new(0, 4, 1000, true).run().await?;
+    Test::new(0, 1, 1000, true).run()?;
+    Test::new(0, 4, 1000, true).run()?;
 
     Ok(())
 }
@@ -19,22 +18,22 @@ struct Test {
     queue_start: usize,
     queue_count: usize,
     num_packets: usize,
-    is_async: bool,
+    read_async: bool,
     needs_clean_up: bool,
 }
 
 impl Test {
-    fn new(queue_start: usize, queue_count: usize, num_packets: usize, is_async: bool) -> Self {
+    fn new(queue_start: usize, queue_count: usize, num_packets: usize, read_async: bool) -> Self {
         Self {
             queue_start,
             queue_count,
             num_packets,
-            is_async,
+            read_async,
             needs_clean_up: false,
         }
     }
 
-    async fn run(mut self) -> Result<()> {
+    fn run(mut self) -> Result<()> {
         self.needs_clean_up = true;
 
         println!("----------------------------------------------------------------");
@@ -45,7 +44,7 @@ impl Test {
         println!("Queue start: {}", self.queue_start);
         println!("Queue count: {}", self.queue_count);
         println!("Number of packets: {}", self.num_packets);
-        println!("Is async: {}", self.is_async);
+        println!("Read async: {}", self.read_async);
 
         println!("----- STARTING QUEUES -----");
         for dir in [ctl::QueueDir::C2h, ctl::QueueDir::H2c] {
@@ -61,8 +60,8 @@ impl Test {
             threads.push(thread::spawn(move || {
                 write_to_queue(queue, self.num_packets)
             }));
-            if self.is_async {
-                tasks.push(monoio::spawn(async move {
+            if self.read_async {
+                tasks.push(Box::pin(async move {
                     read_from_queue_async(queue, self.num_packets).await
                 }));
             } else {
@@ -72,16 +71,17 @@ impl Test {
             }
         }
 
-        monoio::blocking::spawn_blocking(move || {
-            for t in threads {
-                t.join().unwrap()?;
+        monoio::start::<monoio::IoUringDriver, _>(async move {
+            let tasks = tasks.into_iter().map(monoio::spawn).collect::<Vec<_>>();
+
+            for t in tasks {
+                t.await?;
             }
+
             Ok::<_, anyhow::Error>(())
-        })
-        .await
-        .unwrap()?;
-        for t in tasks {
-            t.await?;
+        })?;
+        for t in threads {
+            t.join().unwrap()?;
         }
 
         self.stop_queues()?;
