@@ -39,7 +39,7 @@ echo "### Run C2H Rust ###"
 echo
 
 # C2H Rust Async
-echo "### Run C2H Rust Asyn ###"
+echo "### Run C2H Rust Async ###"
 ../target/release/examples/c2h_async_simple $count_c2h
 echo
 
