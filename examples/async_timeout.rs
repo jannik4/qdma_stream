@@ -65,7 +65,10 @@ impl Test {
             }));
         }
 
-        monoio::start::<monoio::LegacyDriver, _>(async move {
+        let mut rt = monoio::RuntimeBuilder::<monoio::LegacyDriver>::new()
+            .enable_timer()
+            .build()?;
+        rt.block_on(async move {
             let tasks = tasks.into_iter().map(monoio::spawn).collect::<Vec<_>>();
 
             for t in tasks {
