@@ -1,35 +1,59 @@
 use anyhow::Result;
 use humansize::{ISizeFormatter, BINARY};
-use qdma_stream::{ctl, CardToHostStream, CardToHostStreamAsync, HostToCardStream};
+use qdma_stream::{ctl, CardToHostStream, HostToCardStream};
 use std::{io::Write, thread, time::Instant};
 
 fn main() -> Result<()> {
-    Test::new(0, 1, 1000, false).run()?;
-    Test::new(0, 1, 100_000, false).run()?;
-    Test::new(0, 4, 100_000, false).run()?;
+    Bench::new(Some(ctl::QueueDir::H2c), false, 0, 1, 200_000).run()?;
+    Bench::new(Some(ctl::QueueDir::H2c), false, 0, 4, 200_000).run()?;
 
-    // Test::new(0, 1, 100_000, true).run()?;
-    // Test::new(0, 4, 100_000, true).run()?;
+    Bench::new(Some(ctl::QueueDir::C2h), false, 0, 1, 200_000).run()?;
+    Bench::new(Some(ctl::QueueDir::C2h), false, 0, 4, 200_000).run()?;
+
+    Bench::new(Some(ctl::QueueDir::C2h), true, 0, 1, 200_000).run()?;
+    Bench::new(Some(ctl::QueueDir::C2h), true, 0, 4, 200_000).run()?;
+
+    Bench::new(None, false, 0, 1, 200_000).run()?;
+    Bench::new(None, false, 0, 4, 200_000).run()?;
+
+    Bench::new(None, true, 0, 1, 200_000).run()?;
+    Bench::new(None, true, 0, 4, 200_000).run()?;
 
     Ok(())
 }
 
-struct Test {
+struct Bench {
+    dir: Option<ctl::QueueDir>,
+    with_ctrl_sequence: bool,
     queue_start: usize,
     queue_count: usize,
     num_packets: usize,
-    read_async: bool,
     needs_clean_up: bool,
 }
 
-impl Test {
-    fn new(queue_start: usize, queue_count: usize, num_packets: usize, read_async: bool) -> Self {
+impl Bench {
+    fn new(
+        dir: Option<ctl::QueueDir>,
+        with_ctrl_sequence: bool,
+        queue_start: usize,
+        queue_count: usize,
+        num_packets: usize,
+    ) -> Self {
         Self {
+            dir,
+            with_ctrl_sequence,
             queue_start,
             queue_count,
             num_packets,
-            read_async,
             needs_clean_up: false,
+        }
+    }
+
+    fn directions(&self) -> &'static [ctl::QueueDir] {
+        match self.dir {
+            Some(ctl::QueueDir::C2h) => &[ctl::QueueDir::C2h],
+            Some(ctl::QueueDir::H2c) => &[ctl::QueueDir::H2c],
+            None => &[ctl::QueueDir::C2h, ctl::QueueDir::H2c],
         }
     }
 
@@ -40,48 +64,39 @@ impl Test {
         println!("----------------------------------------------------------------");
         println!("----------------------------------------------------------------");
 
-        println!("----- STARTING TEST -----");
+        println!("----- STARTING BENCH -----");
+        match self.dir {
+            Some(dir) => println!("Direction: {}", dir.as_str()),
+            None => println!("Direction: both"),
+        }
+        println!("With control sequence: {}", self.with_ctrl_sequence);
         println!("Queue start: {}", self.queue_start);
         println!("Queue count: {}", self.queue_count);
         println!("Number of packets: {}", self.num_packets);
-        println!("Read async: {}", self.read_async);
 
         println!("----- STARTING QUEUES -----");
-        for dir in [ctl::QueueDir::C2h, ctl::QueueDir::H2c] {
+        for dir in self.directions() {
             for queue in self.queue_start..self.queue_start + self.queue_count {
-                ctl::queue_add("qdmac1000", queue, dir)?;
-                ctl::queue_start("qdmac1000", queue, dir)?;
+                ctl::queue_add("qdmac1000", queue, *dir)?;
+                ctl::queue_start("qdmac1000", queue, *dir)?;
             }
         }
 
         let mut threads = Vec::new();
-        let mut tasks = Vec::new();
         for queue in self.queue_start..self.queue_start + self.queue_count {
-            threads.push(thread::spawn(move || {
-                write_to_queue(queue, self.num_packets)
-            }));
-            if self.read_async {
-                tasks.push(Box::pin(async move {
-                    read_from_queue_async(queue, self.num_packets).await
+            if self.dir.is_none() || self.dir == Some(ctl::QueueDir::C2h) {
+                threads.push(thread::spawn(move || match self.with_ctrl_sequence {
+                    true => read_from_queue::<true>(queue, self.num_packets),
+                    false => read_from_queue::<false>(queue, self.num_packets),
                 }));
-            } else {
+            }
+            if self.dir.is_none() || self.dir == Some(ctl::QueueDir::H2c) {
                 threads.push(thread::spawn(move || {
-                    read_from_queue(queue, self.num_packets)
+                    write_to_queue(queue, self.num_packets)
                 }));
             }
         }
 
-        if self.read_async {
-            monoio::start::<monoio::LegacyDriver, _>(async move {
-                let tasks = tasks.into_iter().map(monoio::spawn).collect::<Vec<_>>();
-
-                for t in tasks {
-                    t.await?;
-                }
-
-                Ok::<_, anyhow::Error>(())
-            })?;
-        }
         for t in threads {
             t.join().unwrap()?;
         }
@@ -95,10 +110,10 @@ impl Test {
 
     fn stop_queues(mut self) -> Result<()> {
         println!("----- STOPPING QUEUES -----");
-        for dir in [ctl::QueueDir::C2h, ctl::QueueDir::H2c] {
+        for dir in self.directions() {
             for queue in self.queue_start..self.queue_start + self.queue_count {
-                ctl::queue_stop("qdmac1000", queue, dir)?;
-                ctl::queue_del("qdmac1000", queue, dir)?;
+                ctl::queue_stop("qdmac1000", queue, *dir)?;
+                ctl::queue_del("qdmac1000", queue, *dir)?;
             }
         }
 
@@ -108,7 +123,7 @@ impl Test {
     }
 }
 
-impl Drop for Test {
+impl Drop for Bench {
     fn drop(&mut self) {
         if !self.needs_clean_up {
             return;
@@ -159,44 +174,20 @@ fn write_to_queue(queue: usize, num_packets: usize) -> Result<()> {
     Ok(())
 }
 
-fn read_from_queue(queue: usize, num_packets: usize) -> Result<()> {
+fn read_from_queue<const WITH_CTRL_SEQUENCE: bool>(queue: usize, num_packets: usize) -> Result<()> {
     let mut stream = CardToHostStream::new(format!("/dev/qdmac1000-ST-{}", queue))?;
 
-    let mut test_packet = TestPacket::new();
-
     let start = Instant::now();
-    for packet in 0..num_packets {
-        test_packet.set_from_queue_and_packet(queue, packet);
-        let received = stream.next_packet()?;
-        if received != test_packet.0 {
-            anyhow::bail!("queue({}): packet {} mismatch", queue, packet);
+    for _ in 0..num_packets {
+        if WITH_CTRL_SEQUENCE {
+            let _received = stream.next_packet_or_ctrl_seq()?;
+        } else {
+            let _received = stream.next_packet()?;
         }
     }
     let elapsed = start.elapsed().as_secs_f64();
 
     let bytes = num_packets * CardToHostStream::PACKET_SIZE;
-    let speed = bytes as f64 / elapsed;
-    println!(
-        "queue({}): read {} bytes in {:.6} seconds @ {}/s",
-        queue,
-        ISizeFormatter::new(bytes, BINARY),
-        elapsed,
-        ISizeFormatter::new(speed, BINARY),
-    );
-
-    Ok(())
-}
-
-async fn read_from_queue_async(queue: usize, num_packets: usize) -> Result<()> {
-    let mut stream = CardToHostStreamAsync::new(format!("/dev/qdmac1000-ST-{}", queue)).await?;
-
-    let start = Instant::now();
-    for _ in 0..num_packets {
-        stream.next_packet().await?;
-    }
-    let elapsed = start.elapsed().as_secs_f64();
-
-    let bytes = num_packets * CardToHostStreamAsync::PACKET_SIZE;
     let speed = bytes as f64 / elapsed;
     println!(
         "queue({}): read {} bytes in {:.6} seconds @ {}/s",

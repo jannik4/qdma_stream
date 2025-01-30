@@ -28,19 +28,19 @@ impl CardToHostStream {
         Ok(slice)
     }
 
-    pub fn next_packet_or_ctrl_seq(&mut self) -> Result<Option<&[u8]>> {
+    pub fn next_packet_or_ctrl_seq(&mut self) -> Result<PacketOrCtrlSeq<'_>> {
         let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
 
         self.file.read_exact(slice)?;
         if slice.starts_with(&CTRL_SEQ) {
             self.file.read_exact(slice)?;
             if slice.starts_with(&CTRL_SEQ) {
-                Ok(Some(slice))
+                Ok(PacketOrCtrlSeq::Packet(slice))
             } else {
-                Ok(None)
+                Ok(PacketOrCtrlSeq::CtrlSeq(slice))
             }
         } else {
-            Ok(Some(slice))
+            Ok(PacketOrCtrlSeq::Packet(slice))
         }
     }
 }
@@ -51,6 +51,11 @@ impl Drop for CardToHostStream {
             mem_aligned_free(self.ptr.as_ptr(), Self::PACKET_SIZE, Self::ALIGN);
         }
     }
+}
+
+pub enum PacketOrCtrlSeq<'a> {
+    Packet(&'a [u8]),
+    CtrlSeq(&'a [u8]),
 }
 
 const CTRL_SEQ: [u8; 4] = [0x4A, 0x37, 0xF1, 0x5C];
