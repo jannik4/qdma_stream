@@ -4,20 +4,23 @@ use qdma_stream::{ctl, CardToHostStream, HostToCardStream};
 use std::{io::Write, thread, time::Instant};
 
 fn main() -> Result<()> {
-    Bench::new(Some(ctl::QueueDir::H2c), false, 0, 1, 200_000).run()?;
-    Bench::new(Some(ctl::QueueDir::H2c), false, 0, 4, 200_000).run()?;
+    for with_ctrl_sequence in [false, true] {
+        println!("----------------------------------------------------------------");
+        println!(" with_ctrl_sequence: {}", with_ctrl_sequence);
+        println!("----------------------------------------------------------------");
+        println!();
 
-    Bench::new(Some(ctl::QueueDir::C2h), false, 0, 1, 200_000).run()?;
-    Bench::new(Some(ctl::QueueDir::C2h), false, 0, 4, 200_000).run()?;
+        Bench::new(Some(ctl::QueueDir::H2c), with_ctrl_sequence, 0, 1, 200_000).run()?;
+        Bench::new(Some(ctl::QueueDir::H2c), with_ctrl_sequence, 0, 4, 200_000).run()?;
 
-    Bench::new(Some(ctl::QueueDir::C2h), true, 0, 1, 200_000).run()?;
-    Bench::new(Some(ctl::QueueDir::C2h), true, 0, 4, 200_000).run()?;
+        Bench::new(Some(ctl::QueueDir::C2h), with_ctrl_sequence, 0, 1, 200_000).run()?;
+        Bench::new(Some(ctl::QueueDir::C2h), with_ctrl_sequence, 0, 4, 200_000).run()?;
 
-    Bench::new(None, false, 0, 1, 200_000).run()?;
-    Bench::new(None, false, 0, 4, 200_000).run()?;
+        Bench::new(None, with_ctrl_sequence, 0, 1, 200_000).run()?;
+        Bench::new(None, with_ctrl_sequence, 0, 4, 200_000).run()?;
 
-    Bench::new(None, true, 0, 1, 200_000).run()?;
-    Bench::new(None, true, 0, 4, 200_000).run()?;
+        println!();
+    }
 
     Ok(())
 }
