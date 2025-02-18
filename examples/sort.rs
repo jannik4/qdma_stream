@@ -1,4 +1,4 @@
-use anyhow::{bail, ensure, Ok, Result};
+use anyhow::{bail, Ok, Result};
 use qdma_stream::{CardToHostStream, HostToCardStream};
 use std::{io::Write, thread};
 
