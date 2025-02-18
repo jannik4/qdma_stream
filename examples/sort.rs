@@ -1,4 +1,4 @@
-use anyhow::{ensure, Ok, Result};
+use anyhow::{bail, ensure, Ok, Result};
 use qdma_stream::{CardToHostStream, HostToCardStream};
 use std::{io::Write, thread};
 
@@ -14,18 +14,6 @@ fn main() -> Result<()> {
 
 fn run_test(queue: usize, seed: u64) -> Result<()> {
     let data = TestPacket::random_data(seed);
-
-    // {
-    //     for c in data.0.chunks(32) {
-    //         println!("{:?}", c);
-    //     }
-    //     let mut sorted = data;
-    //     sorted.sort();
-    //     println!();
-    //     for c in sorted.0.chunks(32) {
-    //         println!("{:?}", c);
-    //     }
-    // }
 
     let threads = vec![
         thread::spawn(move || write_to_queue(queue, data)),
@@ -53,13 +41,24 @@ fn write_to_queue(queue: usize, data: TestPacket) -> Result<()> {
     Ok(())
 }
 
-fn read_from_queue(queue: usize, mut data: TestPacket) -> Result<()> {
+fn read_from_queue(queue: usize, data: TestPacket) -> Result<()> {
+    let mut sorted = data;
+    sorted.sort();
+
     let mut stream = CardToHostStream::new(format!("/dev/qdmac1000-ST-{}", queue))?;
 
     let received = stream.next_packet()?;
 
-    data.sort();
-    ensure!(received == data.0, "packet mismatch");
+    if received != data.0 {
+        println!("data:");
+        dbg_packet(&data.0);
+        println!("\nsorted:");
+        dbg_packet(&sorted.0);
+        println!("\nreceived:");
+        dbg_packet(received);
+
+        bail!("packet mismatch");
+    }
 
     Ok(())
 }
@@ -92,5 +91,11 @@ impl TestPacket {
 
         // Sort
         data.sort_by(|a, b| a[7].cmp(&b[7]));
+    }
+}
+
+fn dbg_packet(packet: &[u8]) {
+    for c in packet.chunks(32) {
+        println!("{:?}", c);
     }
 }
