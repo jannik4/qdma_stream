@@ -49,7 +49,7 @@ fn read_from_queue(queue: usize, data: TestPacket) -> Result<()> {
 
     let received = stream.next_packet()?;
 
-    if received != data.0 {
+    if received != sorted.0 {
         println!("data:");
         dbg_packet(&data.0);
         println!("\nsorted:");
