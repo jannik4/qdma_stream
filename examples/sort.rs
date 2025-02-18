@@ -90,7 +90,7 @@ impl TestPacket {
         let data = unsafe { &mut *(self.0.as_mut_ptr() as *mut [[u32; 8]; LEN / 32]) };
 
         // Sort
-        data.sort_by(|a, b| a[7].cmp(&b[7]));
+        data.sort_by(|a, b| a[0].cmp(&b[0]));
     }
 }
 
