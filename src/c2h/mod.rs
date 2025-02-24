@@ -31,6 +31,14 @@ impl CardToHostStream {
         })
     }
 
+    pub fn read_next(&mut self, len: usize) -> Result<&[u8]> {
+        let len = usize::min(len, Self::PACKET_SIZE);
+        let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), len) };
+
+        self.file.read_exact(slice)?;
+        Ok(slice)
+    }
+
     pub fn next_packet(&mut self) -> Result<&[u8]> {
         let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
 

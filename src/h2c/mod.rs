@@ -50,7 +50,15 @@ impl HostToCardStream {
     }
 
     /// Use this to write remaining packets and finish the stream.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `remaining` is empty.
     pub fn write_remaining(&mut self, remaining: &[u8]) -> io::Result<()> {
+        if remaining.is_empty() {
+            panic!("remaining data is empty");
+        }
+
         // Calculate count of remaining packets
         let remaining_packet_count = u32::div_ceil(remaining.len() as u32, 4096);
 

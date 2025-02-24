@@ -6,7 +6,7 @@ use std::{io::Write, time::Instant};
 fn main() -> Result<()> {
     let queue = std::env::args()
         .nth(1)
-        .unwrap_or("4".to_string())
+        .unwrap_or("0".to_string())
         .parse::<u32>()?;
     let num_bytes = std::env::args()
         .nth(2)
