@@ -74,6 +74,8 @@ fn read_from_queue(queue: usize, data: TestData) -> Result<()> {
         bail!("packet mismatch");
     }
 
+    println!("sort successful");
+
     Ok(())
 }
 
