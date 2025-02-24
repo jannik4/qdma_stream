@@ -117,6 +117,7 @@ impl TestData {
 }
 
 fn dbg_packet(packet: &[u8]) {
+    let packet = &packet[..usize::min(packet.len(), 4096)];
     for c in packet.chunks(32) {
         println!("{:?}", c);
     }

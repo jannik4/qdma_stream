@@ -60,7 +60,7 @@ impl HostToCardStream {
         }
 
         // Calculate count of remaining packets
-        let remaining_packet_count = u32::div_ceil(remaining.len() as u32, 4096);
+        let remaining_packet_count = usize::div_ceil(remaining.len(), 4096) as u32;
 
         let mut stream = self.stream.lock().unwrap();
 
