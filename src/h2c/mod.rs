@@ -60,7 +60,8 @@ impl HostToCardStream {
         stream.write_remaining_packet_count(remaining_packet_count)?;
 
         // Write remaining data
-        stream.file.write_all(remaining)?;
+        stream.buf.write_all(remaining)?;
+        stream.flush()?;
 
         Ok(())
     }
@@ -118,7 +119,8 @@ impl Stream {
         self.flush()?;
 
         // Write count of remaining packets
-        self.file.write_all(&u32::to_le_bytes(count))?;
+        self.buf.write_all(&u32::to_le_bytes(count))?;
+        self.flush()?;
 
         Ok(())
     }

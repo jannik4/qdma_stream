@@ -31,25 +31,24 @@ impl Buf {
     }
 
     pub fn write_into<W: Write>(&mut self, mut writer: W) -> io::Result<()> {
-        let len = self.len / ALIGN * ALIGN;
-        if len == 0 {
+        if self.len == 0 {
             return Ok(());
         }
 
+        // Write aligned part of the buffer
+        let len = self.len / ALIGN * ALIGN;
         let slice = unsafe { std::slice::from_raw_parts(self.ptr.as_ptr(), len) };
         writer.write_all(slice)?;
 
+        // Write rest of the buffer
         if len < self.len {
-            unsafe {
-                ptr::copy(
-                    self.ptr.as_ptr().add(len),
-                    self.ptr.as_ptr(),
-                    self.len - len,
-                );
-            }
+            let slice =
+                unsafe { std::slice::from_raw_parts(self.ptr.as_ptr().add(len), self.len - len) };
+            writer.write_all(slice)?;
         }
 
-        self.len -= len;
+        // Reset buffer
+        self.len = 0;
 
         Ok(())
     }
