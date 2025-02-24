@@ -48,6 +48,32 @@ impl HostToCardStream {
             flush_threshold,
         })
     }
+
+    /// Use this to write remaining packets and finish the stream.
+    pub fn write_remaining(&mut self, remaining: &[u8]) -> io::Result<()> {
+        // Calculate count of remaining packets
+        let remaining_packet_count = u32::div_ceil(remaining.len() as u32, 4096);
+
+        let mut stream = self.stream.lock().unwrap();
+
+        // Write remaining packets count
+        stream.write_remaining_packet_count(remaining_packet_count)?;
+
+        // Write remaining data
+        stream.file.write_all(remaining)?;
+
+        Ok(())
+    }
+
+    /// Use this to write the count of remaining packets. This is useful when you know early on
+    /// how many packets you will be writing. The stream will be finished when the count of packets
+    /// is reached.
+    pub fn write_remaining_packet_count(&mut self, count: u32) -> io::Result<()> {
+        self.stream
+            .lock()
+            .unwrap()
+            .write_remaining_packet_count(count)
+    }
 }
 
 impl Write for HostToCardStream {
@@ -84,6 +110,16 @@ impl Stream {
     fn flush(&mut self) -> io::Result<()> {
         self.last_write_to_file = Instant::now();
         self.buf.write_into(&mut self.file)?;
+        Ok(())
+    }
+
+    fn write_remaining_packet_count(&mut self, count: u32) -> io::Result<()> {
+        // Flush existing buffer
+        self.flush()?;
+
+        // Write count of remaining packets
+        self.file.write_all(&u32::to_le_bytes(count))?;
+
         Ok(())
     }
 }
