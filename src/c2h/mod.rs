@@ -97,20 +97,14 @@ impl CardToHostStream {
             unsafe { std::slice::from_raw_parts_mut(self.ptr_prev.as_ptr(), Self::PACKET_SIZE) };
         match self.protocol_state {
             ProtocolState::NotSet => {
-                self.file.read_exact(slice_prev)?;
                 self.protocol_state = ProtocolState::Data;
-
-                if slice_prev.starts_with(&CTRL_SEQ) {
-                    let ctrl = self.read_ctrl()?;
-
-                    match ctrl {
-                        ProtocolCtrl::ThisIsData => (),
-                        ProtocolCtrl::ThisIsLast(len) => {
-                            self.protocol_state = ProtocolState::NotSet;
-                            return Ok((true, &slice_prev[..len]));
-                        }
-                        ProtocolCtrl::PrevIsLast(_) => bail!("protocol error"),
+                match self.next_beat_protocol(slice_prev)? {
+                    BeatMeta::ThisIsData => (),
+                    BeatMeta::ThisIsLast(len) => {
+                        self.protocol_state = ProtocolState::NotSet;
+                        return Ok((true, &slice_prev[..len]));
                     }
+                    BeatMeta::PrevIsLast(_) => bail!("protocol error"),
                 }
             }
             ProtocolState::Data => (),
@@ -124,49 +118,44 @@ impl CardToHostStream {
 
         // Read current packet
         let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
-        self.file.read_exact(slice)?;
-
-        if slice.starts_with(&CTRL_SEQ) {
-            let ctrl = self.read_ctrl()?;
-
-            match ctrl {
-                ProtocolCtrl::ThisIsData => {
-                    // Swap pointers
-                    std::mem::swap(&mut self.ptr, &mut self.ptr_prev);
-
-                    Ok((false, slice_prev))
-                }
-                ProtocolCtrl::ThisIsLast(len) => {
-                    self.protocol_state = ProtocolState::Last(len);
-                    Ok((false, slice_prev))
-                }
-                ProtocolCtrl::PrevIsLast(len) => {
-                    self.protocol_state = ProtocolState::NotSet;
-                    Ok((true, &slice_prev[..len]))
-                }
+        match self.next_beat_protocol(slice)? {
+            BeatMeta::ThisIsData => {
+                // Swap pointers
+                std::mem::swap(&mut self.ptr, &mut self.ptr_prev);
             }
-        } else {
-            // Swap pointers
-            std::mem::swap(&mut self.ptr, &mut self.ptr_prev);
+            BeatMeta::ThisIsLast(len) => self.protocol_state = ProtocolState::Last(len),
+            BeatMeta::PrevIsLast(len) => {
+                self.protocol_state = ProtocolState::NotSet;
+                return Ok((true, &slice_prev[..len]));
+            }
+        }
 
-            Ok((false, slice_prev))
+        Ok((false, slice_prev))
+    }
+
+    fn next_beat_protocol(&mut self, slice: &mut [u8]) -> Result<BeatMeta> {
+        self.file.read_exact(slice)?;
+        if slice.starts_with(&CTRL_SEQ) {
+            self.read_ctrl()
+        } else {
+            Ok(BeatMeta::ThisIsData)
         }
     }
 
-    fn read_ctrl(&mut self) -> Result<ProtocolCtrl> {
+    fn read_ctrl(&mut self) -> Result<BeatMeta> {
         let slice_ctrl =
             unsafe { std::slice::from_raw_parts_mut(self.ptr_ctrl.as_ptr(), Self::CTRL_SIZE) };
         self.file.read_exact(slice_ctrl)?;
         let ctrl = u32::from_le_bytes([slice_ctrl[0], slice_ctrl[1], slice_ctrl[2], slice_ctrl[3]]);
 
         Ok(if ctrl == 0 {
-            ProtocolCtrl::ThisIsData
+            BeatMeta::ThisIsData
         } else if (ctrl & (1 << 31)) == 0 {
             let len = usize::min(Self::PACKET_SIZE, ctrl as usize);
-            ProtocolCtrl::ThisIsLast(len)
+            BeatMeta::ThisIsLast(len)
         } else {
             let len = usize::min(Self::PACKET_SIZE, (ctrl & !(1 << 31)) as usize);
-            ProtocolCtrl::PrevIsLast(len)
+            BeatMeta::PrevIsLast(len)
         })
     }
 }
@@ -193,7 +182,7 @@ enum ProtocolState {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ProtocolCtrl {
+enum BeatMeta {
     ThisIsData,
     ThisIsLast(usize),
     PrevIsLast(usize),
