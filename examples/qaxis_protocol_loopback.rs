@@ -99,7 +99,7 @@ impl TestData {
                     };
 
                     next as u8;
-                    0
+                    255
                 })
                 .collect(),
         )
