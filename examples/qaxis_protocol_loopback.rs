@@ -59,6 +59,7 @@ fn read_from_queue(queue: usize, data: TestData) -> Result<()> {
     loop {
         let (is_last, packet) = stream.next_packet_protocol()?;
         received.extend_from_slice(packet);
+        dbg!((is_last, packet.len()));
         if is_last {
             break;
         }
