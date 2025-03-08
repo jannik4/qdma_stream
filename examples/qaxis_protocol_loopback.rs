@@ -98,7 +98,8 @@ impl TestData {
                         x.wrapping_mul(2685821657736338717)
                     };
 
-                    next as u8
+                    next as u8;
+                    0
                 })
                 .collect(),
         )
