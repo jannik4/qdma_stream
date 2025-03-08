@@ -135,7 +135,8 @@ impl CardToHostStream {
 
     fn next_beat_protocol(&mut self, slice: &mut [u8]) -> Result<BeatMeta> {
         self.file.read_exact(slice)?;
-        dbg!((&slice[0..4], &slice[slice.len() - 4..]));
+        // dbg!((&slice[0..4], &slice[slice.len() - 4..]));
+        dbg!(&slice);
         if slice.starts_with(&CTRL_SEQ) {
             self.read_ctrl()
         } else {
