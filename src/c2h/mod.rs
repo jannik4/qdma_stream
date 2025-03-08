@@ -138,7 +138,7 @@ impl CardToHostStream {
         // dbg!((&slice[0..4], &slice[slice.len() - 4..]));
         // dbg!(&slice);
         for (i, byte) in slice.iter().enumerate() {
-            if i == 0 {
+            if i != 0 {
                 print!(", ");
             }
             print!("{}", byte);
