@@ -17,8 +17,6 @@ use std::{
 pub struct HostToCardStream {
     alive: Arc<AtomicBool>,
     stream: Arc<Mutex<Stream>>,
-
-    flush_threshold: usize,
 }
 
 impl HostToCardStream {
@@ -36,17 +34,14 @@ impl HostToCardStream {
                 .write(true)
                 .open(path.as_ref())?,
             last_write_to_file: Instant::now(),
+            flush_threshold,
         }));
 
         let alive_clone = Arc::clone(&alive);
         let stream_clone = Arc::clone(&stream);
         thread::spawn(move || daemon(alive_clone, stream_clone, flush_interval));
 
-        Ok(Self {
-            alive,
-            stream,
-            flush_threshold,
-        })
+        Ok(Self { alive, stream })
     }
 
     /// Use this to write remaining packets and finish the stream.
@@ -68,7 +63,7 @@ impl HostToCardStream {
         stream.write_remaining_packet_count(remaining_packet_count)?;
 
         // Write remaining data
-        stream.buf.write_all(remaining)?;
+        stream.write_all(remaining)?;
         stream.flush()?;
 
         Ok(())
@@ -88,17 +83,12 @@ impl HostToCardStream {
 impl Write for HostToCardStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut stream = self.stream.lock().unwrap();
-        let count = stream.buf.write(buf)?;
-        if stream.buf.len() >= self.flush_threshold {
-            stream.flush()?;
-        }
-        Ok(count)
+        stream.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
         let mut stream = self.stream.lock().unwrap();
-        stream.flush()?;
-        Ok(())
+        stream.flush()
     }
 }
 
@@ -113,15 +103,10 @@ struct Stream {
     buf: Buf,
     file: fs::File,
     last_write_to_file: Instant,
+    flush_threshold: usize,
 }
 
 impl Stream {
-    fn flush(&mut self) -> io::Result<()> {
-        self.last_write_to_file = Instant::now();
-        self.buf.write_into(&mut self.file)?;
-        Ok(())
-    }
-
     fn write_remaining_packet_count(&mut self, count: u32) -> io::Result<()> {
         // Flush existing buffer
         self.flush()?;
@@ -130,6 +115,22 @@ impl Stream {
         self.buf.write_all(&u32::to_le_bytes(count))?;
         self.flush()?;
 
+        Ok(())
+    }
+}
+
+impl Write for Stream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let count = self.buf.write(buf)?;
+        if self.buf.len() >= self.flush_threshold {
+            self.flush()?;
+        }
+        Ok(count)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.last_write_to_file = Instant::now();
+        self.buf.write_into(&mut self.file)?;
         Ok(())
     }
 }
