@@ -31,7 +31,7 @@ fn write_to_queue(queue: u32, num_bytes: usize) -> Result<()> {
     }
 
     // let mut num_bytes_left = num_bytes;
-    let buf = vec![0; 4096];
+    let buf = vec![0; num_bytes];
 
     let start = Instant::now();
     // while num_bytes_left > 4096 {
