@@ -4,9 +4,11 @@ use qdma_stream::{ctl, CardToHostStream, CardToHostStreamAsync, HostToCardStream
 use std::{io::Write, thread, time::Instant};
 
 fn main() -> Result<()> {
-    Test::new(0, 1, 1000, false).run()?;
-    Test::new(0, 1, 100_000, false).run()?;
-    Test::new(0, 4, 100_000, false).run()?;
+    Test::new(3, 1, 100_000, false).run()?;
+
+    // Test::new(0, 1, 1000, false).run()?;
+    // Test::new(0, 1, 100_000, false).run()?;
+    // Test::new(0, 4, 100_000, false).run()?;
 
     // Test::new(0, 1, 100_000, true).run()?;
     // Test::new(0, 4, 100_000, true).run()?;
