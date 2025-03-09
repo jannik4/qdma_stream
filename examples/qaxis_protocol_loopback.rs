@@ -24,13 +24,14 @@ fn main() -> Result<()> {
 
 fn run_test(queue: usize, num_bytes: usize, seed: u64) -> Result<()> {
     let data = TestData::random_data(num_bytes, seed);
+    let received = Vec::with_capacity(data.0.len());
 
     let threads = vec![
         thread::spawn({
             let data = data.clone();
             move || write_to_queue(queue, data)
         }),
-        thread::spawn(move || read_from_queue(queue, data)),
+        thread::spawn(move || read_from_queue(queue, data, received)),
     ];
 
     for t in threads {
@@ -65,11 +66,10 @@ fn write_to_queue(queue: usize, data: TestData) -> Result<()> {
     Ok(())
 }
 
-fn read_from_queue(queue: usize, data: TestData) -> Result<()> {
+fn read_from_queue(queue: usize, data: TestData, mut received: Vec<u8>) -> Result<()> {
     let mut stream = CardToHostStream::new(format!("/dev/qdmac1000-ST-{}", queue))?;
 
     let start = Instant::now();
-    let mut received = Vec::new();
     stream.read_complete_protocol(&mut received)?;
     let elapsed = start.elapsed().as_secs_f64();
 
