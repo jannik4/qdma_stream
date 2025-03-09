@@ -1,6 +1,7 @@
 use anyhow::{bail, Ok, Result};
+use humansize::{ISizeFormatter, BINARY};
 use qdma_stream::{CardToHostStream, HostToCardStream};
-use std::thread;
+use std::{thread, time::Instant};
 
 fn main() -> Result<()> {
     let queue = std::env::args()
@@ -47,7 +48,19 @@ fn write_to_queue(queue: usize, data: TestData) -> Result<()> {
         std::time::Duration::from_millis(10),
     )?;
 
+    let start = Instant::now();
     stream.write_remaining(&data.0)?;
+    let elapsed = start.elapsed().as_secs_f64();
+
+    let bytes = data.0.len();
+    let speed = bytes as f64 / elapsed;
+    println!(
+        "queue({}): writen {} bytes in {:.6} seconds @ {}/s",
+        queue,
+        ISizeFormatter::new(bytes, BINARY),
+        elapsed,
+        ISizeFormatter::new(speed, BINARY),
+    );
 
     Ok(())
 }
@@ -55,8 +68,20 @@ fn write_to_queue(queue: usize, data: TestData) -> Result<()> {
 fn read_from_queue(queue: usize, data: TestData) -> Result<()> {
     let mut stream = CardToHostStream::new(format!("/dev/qdmac1000-ST-{}", queue))?;
 
+    let start = Instant::now();
     let mut received = Vec::new();
     stream.read_complete_protocol(&mut received)?;
+    let elapsed = start.elapsed().as_secs_f64();
+
+    let bytes = received.len();
+    let speed = bytes as f64 / elapsed;
+    println!(
+        "queue({}): read {} bytes in {:.6} seconds @ {}/s",
+        queue,
+        ISizeFormatter::new(bytes, BINARY),
+        elapsed,
+        ISizeFormatter::new(speed, BINARY),
+    );
 
     if received != data.0 {
         println!("data:");
