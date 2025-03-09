@@ -1,6 +1,10 @@
 use crate::util::{mem_aligned, mem_aligned_free};
 use anyhow::{bail, Result};
-use std::{fs, io::Read, ptr::NonNull};
+use std::{
+    fs,
+    io::{Read, Write},
+    ptr::NonNull,
+};
 
 pub struct CardToHostStream {
     file: fs::File,
@@ -90,6 +94,16 @@ impl CardToHostStream {
         }
     }
 
+    pub fn read_complete_protocol(&mut self, mut buf: impl Write) -> Result<()> {
+        loop {
+            let (is_last, packet) = self.next_packet_protocol()?;
+            buf.write_all(packet)?;
+            if is_last {
+                break Ok(());
+            }
+        }
+    }
+
     /// Returns `(is_last, data)`
     pub fn next_packet_protocol(&mut self) -> Result<(bool, &[u8])> {
         // Read previous packet
@@ -135,15 +149,6 @@ impl CardToHostStream {
 
     fn next_beat_protocol(&mut self, slice: &mut [u8]) -> Result<BeatMeta> {
         self.file.read_exact(slice)?;
-        dbg!((&slice[0..4], &slice[slice.len() - 4..]));
-        // dbg!(&slice);
-        // for (i, byte) in slice.iter().enumerate() {
-        //     if i != 0 {
-        //         print!(", ");
-        //     }
-        //     print!("{}", byte);
-        // }
-        println!();
         if slice.starts_with(&CTRL_SEQ) {
             self.read_ctrl()
         } else {
