@@ -30,15 +30,16 @@ fn write_to_queue(queue: u32, num_bytes: usize) -> Result<()> {
         bail!("num_bytes must be greater than 0");
     }
 
-    let mut num_bytes_left = num_bytes;
+    // let mut num_bytes_left = num_bytes;
     let buf = vec![0; 4096];
 
     let start = Instant::now();
-    while num_bytes_left > 4096 {
-        stream.write_all(&buf)?;
-        num_bytes_left -= 4096;
-    }
-    stream.write_remaining(&buf[..num_bytes_left])?;
+    // while num_bytes_left > 4096 {
+    //     stream.write_all(&buf)?;
+    //     num_bytes_left -= 4096;
+    // }
+    // stream.write_remaining(&buf[..num_bytes_left])?;
+    stream.write_remaining(&buf)?;
     let elapsed = start.elapsed().as_secs_f64();
 
     let bytes = num_bytes;
