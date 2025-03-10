@@ -74,6 +74,7 @@ impl Test {
         }
 
         // Prepare queues and buffers
+        println!("----- PREPARING QUEUES AND DATA -----");
         let (data, receive_buffer) = match self.seed {
             Some(seed) => {
                 let data = TestData::random_data(self.data_len, seed);
@@ -108,6 +109,7 @@ impl Test {
             .collect::<Result<Vec<_>>>()?;
 
         // Run test
+        println!("----- RUNNING TEST -----");
         let mut threads = Vec::new();
         for (queue, h2c_stream, c2h_stream, data_write, data_read, receive_buffer) in queues {
             threads.push(thread::spawn(move || {
