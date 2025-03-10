@@ -331,10 +331,7 @@ impl ReceiveBuffer {
 impl Write for ReceiveBuffer {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
-            Self::Vec(v) => {
-                v.clear();
-                v.write(buf)
-            }
+            Self::Vec(v) => v.write(buf),
             Self::CountBytes { count } => {
                 *count += buf.len();
                 Ok(buf.len())
