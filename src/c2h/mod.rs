@@ -6,6 +6,9 @@ use std::{
     ptr::NonNull,
 };
 
+unsafe impl Send for CardToHostStream {}
+unsafe impl Sync for CardToHostStream {}
+
 pub struct CardToHostStream {
     file: fs::File,
     ptr: NonNull<u8>,
