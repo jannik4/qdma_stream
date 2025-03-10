@@ -126,10 +126,18 @@ impl Test {
             }));
         }
 
-        for t in threads {
-            t.join().unwrap()?;
+        // Join threads
+        let results = threads
+            .into_iter()
+            .map(|t| t.join().unwrap())
+            .collect::<Vec<_>>();
+
+        // Check results
+        for res in results {
+            res?;
         }
 
+        // Stop queues
         self.stop_queues()?;
 
         println!("----- SUCCESS -----");
