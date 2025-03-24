@@ -73,7 +73,7 @@ fn read_from_queue(queue: usize, num_bytes: usize) -> Result<()> {
     let mut count_bytes = CountBytes { count: 0 };
 
     let start = Instant::now();
-    stream.read_complete_protocol(&mut count_bytes)?;
+    stream.read_complete_stream(&mut count_bytes)?;
     let elapsed = start.elapsed().as_secs_f64();
 
     let bytes = count_bytes.count;

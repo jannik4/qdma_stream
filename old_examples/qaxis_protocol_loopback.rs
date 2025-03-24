@@ -1,6 +1,7 @@
 use anyhow::{bail, Ok, Result};
+use humansize::{ISizeFormatter, BINARY};
 use qdma_stream::{CardToHostStream, HostToCardStream};
-use std::thread;
+use std::{thread, time::Instant};
 
 fn main() -> Result<()> {
     let queue = std::env::args()
@@ -23,13 +24,14 @@ fn main() -> Result<()> {
 
 fn run_test(queue: usize, num_bytes: usize, seed: u64) -> Result<()> {
     let data = TestData::random_data(num_bytes, seed);
+    let received = Vec::with_capacity(data.0.len());
 
     let threads = vec![
         thread::spawn({
             let data = data.clone();
             move || write_to_queue(queue, data)
         }),
-        thread::spawn(move || read_from_queue(queue, data)),
+        thread::spawn(move || read_from_queue(queue, data, received)),
     ];
 
     for t in threads {
@@ -47,34 +49,50 @@ fn write_to_queue(queue: usize, data: TestData) -> Result<()> {
         std::time::Duration::from_millis(10),
     )?;
 
+    let start = Instant::now();
     stream.write_remaining(&data.0)?;
+    let elapsed = start.elapsed().as_secs_f64();
+
+    let bytes = data.0.len();
+    let speed = bytes as f64 / elapsed;
+    println!(
+        "queue({}): writen {} bytes in {:.6} seconds @ {}/s",
+        queue,
+        ISizeFormatter::new(bytes, BINARY),
+        elapsed,
+        ISizeFormatter::new(speed, BINARY),
+    );
 
     Ok(())
 }
 
-fn read_from_queue(queue: usize, data: TestData) -> Result<()> {
-    let mut sorted = data.clone();
-    sorted.sort();
-
+fn read_from_queue(queue: usize, data: TestData, mut received: Vec<u8>) -> Result<()> {
     let mut stream = CardToHostStream::new(format!("/dev/qdmac1000-ST-{}", queue))?;
 
-    let mut received = Vec::new();
-    while data.0.len() > received.len() {
-        received.extend_from_slice(stream.read_next(data.0.len() - received.len())?);
-    }
+    let start = Instant::now();
+    stream.read_complete_stream(&mut received)?;
+    let elapsed = start.elapsed().as_secs_f64();
 
-    if received != sorted.0 {
+    let bytes = received.len();
+    let speed = bytes as f64 / elapsed;
+    println!(
+        "queue({}): read {} bytes in {:.6} seconds @ {}/s",
+        queue,
+        ISizeFormatter::new(bytes, BINARY),
+        elapsed,
+        ISizeFormatter::new(speed, BINARY),
+    );
+
+    if received != data.0 {
         println!("data:");
         dbg_packet(&data.0);
-        println!("\nsorted:");
-        dbg_packet(&sorted.0);
         println!("\nreceived:");
         dbg_packet(&received);
 
         bail!("packet mismatch");
     }
 
-    println!("sort successful");
+    println!("loopback successful");
 
     Ok(())
 }
@@ -102,17 +120,6 @@ impl TestData {
                 })
                 .collect(),
         )
-    }
-
-    fn sort(&mut self) {
-        // Transmute to &mut [[u32; 8]]
-        assert_eq!(self.0.len() % 32, 0);
-        let data = unsafe {
-            std::slice::from_raw_parts_mut(self.0.as_mut_ptr() as *mut [u32; 8], self.0.len() / 32)
-        };
-
-        // Sort
-        data.sort_by(|a, b| a[0].cmp(&b[0]));
     }
 }
 

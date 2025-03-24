@@ -30,7 +30,7 @@ fn read_from_queue(queue: u32) -> Result<()> {
 
     let start = Instant::now();
     for _ in 0..count {
-        stream.next_packet()?;
+        stream.next_raw_packet()?;
     }
     let elapsed = start.elapsed().as_secs_f64();
 

@@ -169,7 +169,7 @@ fn read_from_queue(queue: usize, num_packets: usize) -> Result<()> {
     let start = Instant::now();
     for packet in 0..num_packets {
         test_packet.set_from_queue_and_packet(queue, packet);
-        let received = stream.next_packet()?;
+        let received = stream.next_raw_packet()?;
         if received != test_packet.0 {
             anyhow::bail!("queue({}): packet {} mismatch", queue, packet);
         }

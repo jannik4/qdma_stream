@@ -59,7 +59,9 @@ fn read_from_queue(queue: usize, data: TestData) -> Result<()> {
     let mut stream = CardToHostStream::new(format!("/dev/qdmac1000-ST-{}", queue))?;
 
     let mut received = Vec::new();
-    stream.read_complete_protocol(&mut received)?;
+    while data.0.len() > received.len() {
+        received.extend_from_slice(stream.next_raw_packet_with_len(data.0.len() - received.len())?);
+    }
 
     if received != sorted.0 {
         println!("data:");

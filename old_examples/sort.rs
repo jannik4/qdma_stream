@@ -47,7 +47,7 @@ fn read_from_queue(queue: usize, data: TestPacket) -> Result<()> {
 
     let mut stream = CardToHostStream::new(format!("/dev/qdmac1000-ST-{}", queue))?;
 
-    let received = stream.next_packet()?;
+    let received = stream.next_raw_packet()?;
 
     if received != sorted.0 {
         println!("data:");

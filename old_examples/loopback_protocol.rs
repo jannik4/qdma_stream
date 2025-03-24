@@ -232,7 +232,7 @@ fn read_from_queue(
     let start = Instant::now();
     for _ in 0..data_iterations {
         receive_buffer.clear();
-        stream.read_complete_protocol(&mut receive_buffer)?;
+        stream.read_complete_stream(&mut receive_buffer)?;
     }
     let elapsed = start.elapsed().as_secs_f64();
 

@@ -48,7 +48,7 @@ impl CardToHostStream {
         })
     }
 
-    pub fn read_next(&mut self, len: usize) -> Result<&[u8]> {
+    pub fn next_raw_packet_with_len(&mut self, len: usize) -> Result<&[u8]> {
         let len = usize::min(len, Self::PACKET_SIZE);
         let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), len) };
 
@@ -56,50 +56,13 @@ impl CardToHostStream {
         Ok(slice)
     }
 
-    pub fn next_packet(&mut self) -> Result<&[u8]> {
-        let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
-
-        self.file.read_exact(slice)?;
-        Ok(slice)
+    pub fn next_raw_packet(&mut self) -> Result<&[u8]> {
+        self.next_raw_packet_with_len(Self::PACKET_SIZE)
     }
 
-    pub fn next_packet_or_ctrl_seq(&mut self) -> Result<PacketOrCtrlSeq<'_>> {
-        let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
-
-        self.file.read_exact(slice)?;
-        if slice.starts_with(&CTRL_SEQ) {
-            self.file.read_exact(slice)?;
-            if slice.starts_with(&CTRL_SEQ) {
-                Ok(PacketOrCtrlSeq::Packet(slice))
-            } else {
-                Ok(PacketOrCtrlSeq::CtrlSeq(slice))
-            }
-        } else {
-            Ok(PacketOrCtrlSeq::Packet(slice))
-        }
-    }
-
-    pub fn next_packet_or_eof(&mut self) -> Result<Option<&[u8]>> {
-        let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
-        let slice_ctrl =
-            unsafe { std::slice::from_raw_parts_mut(self.ptr_ctrl.as_ptr(), Self::CTRL_SIZE) };
-
-        self.file.read_exact(slice)?;
-        if slice.starts_with(&CTRL_SEQ) {
-            self.file.read_exact(slice_ctrl)?;
-            if slice_ctrl[0] == 0 {
-                Ok(Some(slice))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(Some(slice))
-        }
-    }
-
-    pub fn read_complete_protocol(&mut self, mut buf: impl Write) -> Result<()> {
+    pub fn read_complete_stream(&mut self, mut buf: impl Write) -> Result<()> {
         loop {
-            let (is_last, packet) = self.next_packet_protocol()?;
+            let (is_last, packet) = self.next_stream_packet()?;
             buf.write_all(packet)?;
             if is_last {
                 break Ok(());
@@ -108,7 +71,7 @@ impl CardToHostStream {
     }
 
     /// Returns `(is_last, data)`
-    pub fn next_packet_protocol(&mut self) -> Result<(bool, &[u8])> {
+    pub fn next_stream_packet(&mut self) -> Result<(bool, &[u8])> {
         // Read previous packet
         let slice_prev =
             unsafe { std::slice::from_raw_parts_mut(self.ptr_prev.as_ptr(), Self::PACKET_SIZE) };
@@ -184,11 +147,6 @@ impl Drop for CardToHostStream {
             mem_aligned_free(self.ptr_ctrl.as_ptr(), Self::CTRL_SIZE, Self::ALIGN);
         }
     }
-}
-
-pub enum PacketOrCtrlSeq<'a> {
-    Packet(&'a [u8]),
-    CtrlSeq(&'a [u8]),
 }
 
 #[derive(Debug, Clone, Copy)]
