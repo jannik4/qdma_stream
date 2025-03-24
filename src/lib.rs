@@ -3,6 +3,7 @@ mod h2c;
 mod util;
 
 pub mod ctl;
+pub mod managed;
 
 pub use self::{c2h::CardToHostStream, h2c::HostToCardStream};
 

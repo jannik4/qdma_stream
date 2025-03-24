@@ -41,7 +41,12 @@ where
 
         Ok(Self { alive, stream })
     }
+}
 
+impl<F> HostToCardStream<F>
+where
+    F: Write,
+{
     /// Use this to write remaining packets and finish the stream.
     ///
     /// # Panics
