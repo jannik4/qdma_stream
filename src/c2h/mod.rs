@@ -1,16 +1,18 @@
-use crate::util::{mem_aligned, mem_aligned_free};
+use crate::{
+    util::{mem_aligned, mem_aligned_free},
+    ALIGN, CTRL_SIZE, PACKET_SIZE,
+};
 use anyhow::{bail, Result};
 use std::{
-    fs,
     io::{Read, Write},
     ptr::NonNull,
 };
 
-unsafe impl Send for CardToHostStream {}
-unsafe impl Sync for CardToHostStream {}
+unsafe impl<F> Send for CardToHostStream<F> {}
+unsafe impl<F> Sync for CardToHostStream<F> {}
 
-pub struct CardToHostStream {
-    file: fs::File,
+pub struct CardToHostStream<F> {
+    file: F,
     ptr: NonNull<u8>,
     ptr_prev: NonNull<u8>,
     ptr_ctrl: NonNull<u8>,
@@ -18,25 +20,19 @@ pub struct CardToHostStream {
     protocol_state: ProtocolState,
 }
 
-impl CardToHostStream {
-    pub const PACKET_SIZE: usize = 4096;
-    const ALIGN: usize = 4096;
-    const CTRL_SIZE: usize = 4;
+impl<F> CardToHostStream<F> {
+    pub fn new(file: F) -> Result<Self> {
+        let ptr = mem_aligned(PACKET_SIZE, ALIGN)?;
+        let slice = unsafe { std::slice::from_raw_parts_mut(ptr.as_ptr(), PACKET_SIZE) };
+        slice.copy_from_slice(&[0; PACKET_SIZE]);
 
-    pub fn new(path: impl AsRef<std::path::Path>) -> Result<Self> {
-        let file = fs::OpenOptions::new().read(true).open(path.as_ref())?;
+        let ptr_prev = mem_aligned(PACKET_SIZE, ALIGN)?;
+        let slice = unsafe { std::slice::from_raw_parts_mut(ptr_prev.as_ptr(), PACKET_SIZE) };
+        slice.copy_from_slice(&[0; PACKET_SIZE]);
 
-        let ptr = mem_aligned(Self::PACKET_SIZE, Self::ALIGN)?;
-        let slice = unsafe { std::slice::from_raw_parts_mut(ptr.as_ptr(), Self::PACKET_SIZE) };
-        slice.copy_from_slice(&[0; Self::PACKET_SIZE]);
-
-        let ptr_prev = mem_aligned(Self::PACKET_SIZE, Self::ALIGN)?;
-        let slice = unsafe { std::slice::from_raw_parts_mut(ptr_prev.as_ptr(), Self::PACKET_SIZE) };
-        slice.copy_from_slice(&[0; Self::PACKET_SIZE]);
-
-        let ptr_ctrl = mem_aligned(Self::CTRL_SIZE, Self::ALIGN)?;
-        let slice = unsafe { std::slice::from_raw_parts_mut(ptr_ctrl.as_ptr(), Self::CTRL_SIZE) };
-        slice.copy_from_slice(&[0; Self::CTRL_SIZE]);
+        let ptr_ctrl = mem_aligned(CTRL_SIZE, ALIGN)?;
+        let slice = unsafe { std::slice::from_raw_parts_mut(ptr_ctrl.as_ptr(), CTRL_SIZE) };
+        slice.copy_from_slice(&[0; CTRL_SIZE]);
 
         Ok(Self {
             file,
@@ -47,9 +43,14 @@ impl CardToHostStream {
             protocol_state: ProtocolState::NotSet,
         })
     }
+}
 
+impl<F> CardToHostStream<F>
+where
+    F: Read,
+{
     pub fn next_raw_packet_with_len(&mut self, len: usize) -> Result<&[u8]> {
-        let len = usize::min(len, Self::PACKET_SIZE);
+        let len = usize::min(len, PACKET_SIZE);
         let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), len) };
 
         self.file.read_exact(slice)?;
@@ -57,7 +58,7 @@ impl CardToHostStream {
     }
 
     pub fn next_raw_packet(&mut self) -> Result<&[u8]> {
-        self.next_raw_packet_with_len(Self::PACKET_SIZE)
+        self.next_raw_packet_with_len(PACKET_SIZE)
     }
 
     pub fn read_complete_stream(&mut self, mut buf: impl Write) -> Result<()> {
@@ -74,7 +75,7 @@ impl CardToHostStream {
     pub fn next_stream_packet(&mut self) -> Result<(bool, &[u8])> {
         // Read previous packet
         let slice_prev =
-            unsafe { std::slice::from_raw_parts_mut(self.ptr_prev.as_ptr(), Self::PACKET_SIZE) };
+            unsafe { std::slice::from_raw_parts_mut(self.ptr_prev.as_ptr(), PACKET_SIZE) };
         match self.protocol_state {
             ProtocolState::NotSet => {
                 self.protocol_state = ProtocolState::Data;
@@ -91,13 +92,13 @@ impl CardToHostStream {
             ProtocolState::Last(len) => {
                 self.protocol_state = ProtocolState::NotSet;
                 let slice =
-                    unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
+                    unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), PACKET_SIZE) };
                 return Ok((true, &slice[..len]));
             }
         }
 
         // Read current packet
-        let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), Self::PACKET_SIZE) };
+        let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), PACKET_SIZE) };
         match self.next_beat_protocol(slice)? {
             BeatMeta::ThisIsData => {
                 // Swap pointers
@@ -124,27 +125,27 @@ impl CardToHostStream {
 
     fn read_ctrl(&mut self) -> Result<BeatMeta> {
         let slice_ctrl =
-            unsafe { std::slice::from_raw_parts_mut(self.ptr_ctrl.as_ptr(), Self::CTRL_SIZE) };
+            unsafe { std::slice::from_raw_parts_mut(self.ptr_ctrl.as_ptr(), CTRL_SIZE) };
         self.file.read_exact(slice_ctrl)?;
         let ctrl = u32::from_le_bytes([slice_ctrl[0], slice_ctrl[1], slice_ctrl[2], slice_ctrl[3]]);
 
         Ok(if ctrl == 0 {
             BeatMeta::ThisIsData
         } else if (ctrl & (1 << 31)) == 0 {
-            let len = usize::min(Self::PACKET_SIZE, ctrl as usize);
+            let len = usize::min(PACKET_SIZE, ctrl as usize);
             BeatMeta::ThisIsLast(len)
         } else {
-            let len = usize::min(Self::PACKET_SIZE, (ctrl & !(1 << 31)) as usize);
+            let len = usize::min(PACKET_SIZE, (ctrl & !(1 << 31)) as usize);
             BeatMeta::PrevIsLast(len)
         })
     }
 }
 
-impl Drop for CardToHostStream {
+impl<F> Drop for CardToHostStream<F> {
     fn drop(&mut self) {
         unsafe {
-            mem_aligned_free(self.ptr.as_ptr(), Self::PACKET_SIZE, Self::ALIGN);
-            mem_aligned_free(self.ptr_ctrl.as_ptr(), Self::CTRL_SIZE, Self::ALIGN);
+            mem_aligned_free(self.ptr.as_ptr(), PACKET_SIZE, ALIGN);
+            mem_aligned_free(self.ptr_ctrl.as_ptr(), CTRL_SIZE, ALIGN);
         }
     }
 }

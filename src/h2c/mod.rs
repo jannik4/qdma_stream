@@ -3,9 +3,7 @@ mod buf;
 use self::buf::Buf;
 use anyhow::Result;
 use std::{
-    fs,
     io::{self, Write},
-    path::Path,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -14,14 +12,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub struct HostToCardStream {
+pub struct HostToCardStream<F: Write> {
     alive: Arc<AtomicBool>,
-    stream: Arc<Mutex<Stream>>,
+    stream: Arc<Mutex<Stream<F>>>,
 }
 
-impl HostToCardStream {
+impl<F> HostToCardStream<F>
+where
+    F: Write + Send + 'static,
+{
     pub fn new(
-        path: impl AsRef<Path>,
+        file: F,
         capacity: usize,
         flush_threshold: usize,
         flush_interval: Duration,
@@ -29,10 +30,7 @@ impl HostToCardStream {
         let alive = Arc::new(AtomicBool::new(true));
         let stream = Arc::new(Mutex::new(Stream {
             buf: Buf::new(capacity)?,
-            file: fs::OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open(path.as_ref())?,
+            file,
             last_write_to_file: Instant::now(),
             flush_threshold,
         }));
@@ -80,7 +78,10 @@ impl HostToCardStream {
     }
 }
 
-impl Write for HostToCardStream {
+impl<F> Write for HostToCardStream<F>
+where
+    F: Write,
+{
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut stream = self.stream.lock().unwrap();
         stream.write(buf)
@@ -92,21 +93,27 @@ impl Write for HostToCardStream {
     }
 }
 
-impl Drop for HostToCardStream {
+impl<F> Drop for HostToCardStream<F>
+where
+    F: Write,
+{
     fn drop(&mut self) {
         self.alive.store(false, Ordering::Relaxed);
         let _ = self.flush();
     }
 }
 
-struct Stream {
+struct Stream<F> {
     buf: Buf,
-    file: fs::File,
+    file: F,
     last_write_to_file: Instant,
     flush_threshold: usize,
 }
 
-impl Stream {
+impl<F> Stream<F>
+where
+    F: Write,
+{
     fn write_remaining_packet_count(&mut self, count: u32) -> io::Result<()> {
         // Flush existing buffer
         self.flush()?;
@@ -119,7 +126,10 @@ impl Stream {
     }
 }
 
-impl Write for Stream {
+impl<F> Write for Stream<F>
+where
+    F: Write,
+{
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let count = self.buf.write(buf)?;
         if self.buf.len() >= self.flush_threshold {
@@ -135,7 +145,10 @@ impl Write for Stream {
     }
 }
 
-fn daemon(alive: Arc<AtomicBool>, stream: Arc<Mutex<Stream>>, flush_interval: Duration) {
+fn daemon<F>(alive: Arc<AtomicBool>, stream: Arc<Mutex<Stream<F>>>, flush_interval: Duration)
+where
+    F: Write,
+{
     while alive.load(Ordering::Relaxed) {
         let mut stream = stream.lock().unwrap();
         let current = Instant::now().duration_since(stream.last_write_to_file);

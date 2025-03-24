@@ -1,11 +1,12 @@
-use crate::util::{mem_aligned, mem_aligned_free};
+use crate::{
+    util::{mem_aligned, mem_aligned_free},
+    ALIGN,
+};
 use anyhow::{ensure, Result};
 use std::{
     io::{self, Write},
     ptr::{self, NonNull},
 };
-
-const ALIGN: usize = 4096;
 
 unsafe impl Send for Buf {}
 
