@@ -3,7 +3,7 @@ mod buf;
 use self::buf::Buf;
 use anyhow::Result;
 use std::{
-    io::{self, Write},
+    io::{self, Read, Write},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -47,6 +47,23 @@ impl<F> HostToCardStream<F>
 where
     F: Write,
 {
+    pub fn write_complete_stream(&mut self, mut buf: impl Read, length: usize) -> io::Result<()> {
+        if length == 0 {
+            panic!("length is zero");
+        }
+
+        let mut stream = self.stream.lock().unwrap();
+        stream.write_remaining_packet_count(usize::div_ceil(length, 4096) as u32)?;
+        let written = io::copy(&mut buf, &mut *stream)?;
+        stream.flush()?;
+
+        if written != length as u64 {
+            panic!("written bytes does not match length");
+        }
+
+        Ok(())
+    }
+
     /// Use this to write remaining packets and finish the stream.
     ///
     /// # Panics
