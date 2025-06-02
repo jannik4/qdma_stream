@@ -4,42 +4,27 @@ use self::buf::Buf;
 use anyhow::Result;
 use std::{
     io::{self, Read, Write},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
-    thread,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 pub struct HostToCardStream<F: Write> {
-    alive: Arc<AtomicBool>,
-    stream: Arc<Mutex<Stream<F>>>,
+    buf: Buf,
+    file: F,
+    last_write_to_file: Instant,
+    flush_threshold: usize,
 }
 
 impl<F> HostToCardStream<F>
 where
     F: Write + Send + 'static,
 {
-    pub fn new(
-        file: F,
-        capacity: usize,
-        flush_threshold: usize,
-        flush_interval: Duration,
-    ) -> Result<Self> {
-        let alive = Arc::new(AtomicBool::new(true));
-        let stream = Arc::new(Mutex::new(Stream {
+    pub fn new(file: F, capacity: usize, flush_threshold: usize) -> Result<Self> {
+        Ok(Self {
             buf: Buf::new(capacity)?,
             file,
             last_write_to_file: Instant::now(),
             flush_threshold,
-        }));
-
-        let alive_clone = Arc::clone(&alive);
-        let stream_clone = Arc::clone(&stream);
-        thread::spawn(move || daemon(alive_clone, stream_clone, flush_interval));
-
-        Ok(Self { alive, stream })
+        })
     }
 }
 
@@ -52,10 +37,9 @@ where
             panic!("length is zero");
         }
 
-        let mut stream = self.stream.lock().unwrap();
-        stream.write_remaining_packet_count(usize::div_ceil(length, 4096) as u32)?;
-        let written = io::copy(&mut buf, &mut *stream)?;
-        stream.flush()?;
+        self.write_remaining_packet_count(usize::div_ceil(length, 4096) as u32)?;
+        let written = io::copy(&mut buf, self)?;
+        self.flush()?;
 
         if written != length as u64 {
             panic!("written bytes does not match length");
@@ -77,14 +61,12 @@ where
         // Calculate count of remaining packets
         let remaining_packet_count = usize::div_ceil(remaining.len(), 4096) as u32;
 
-        let mut stream = self.stream.lock().unwrap();
-
         // Write remaining packets count
-        stream.write_remaining_packet_count(remaining_packet_count)?;
+        self.write_remaining_packet_count(remaining_packet_count)?;
 
         // Write remaining data
-        stream.write_all(remaining)?;
-        stream.flush()?;
+        self.write_all(remaining)?;
+        self.flush()?;
 
         Ok(())
     }
@@ -93,50 +75,6 @@ where
     /// how many packets you will be writing. The stream will be finished when the count of packets
     /// is reached.
     pub fn write_remaining_packet_count(&mut self, count: u32) -> io::Result<()> {
-        self.stream
-            .lock()
-            .unwrap()
-            .write_remaining_packet_count(count)
-    }
-}
-
-impl<F> Write for HostToCardStream<F>
-where
-    F: Write,
-{
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let mut stream = self.stream.lock().unwrap();
-        stream.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        let mut stream = self.stream.lock().unwrap();
-        stream.flush()
-    }
-}
-
-impl<F> Drop for HostToCardStream<F>
-where
-    F: Write,
-{
-    fn drop(&mut self) {
-        self.alive.store(false, Ordering::Relaxed);
-        let _ = self.flush();
-    }
-}
-
-struct Stream<F> {
-    buf: Buf,
-    file: F,
-    last_write_to_file: Instant,
-    flush_threshold: usize,
-}
-
-impl<F> Stream<F>
-where
-    F: Write,
-{
-    fn write_remaining_packet_count(&mut self, count: u32) -> io::Result<()> {
         // Flush existing buffer
         self.flush()?;
 
@@ -148,7 +86,7 @@ where
     }
 }
 
-impl<F> Write for Stream<F>
+impl<F> Write for HostToCardStream<F>
 where
     F: Write,
 {
@@ -167,25 +105,11 @@ where
     }
 }
 
-fn daemon<F>(alive: Arc<AtomicBool>, stream: Arc<Mutex<Stream<F>>>, flush_interval: Duration)
+impl<F> Drop for HostToCardStream<F>
 where
     F: Write,
 {
-    while alive.load(Ordering::Relaxed) {
-        let mut stream = stream.lock().unwrap();
-        let current = Instant::now().duration_since(stream.last_write_to_file);
-        match flush_interval.checked_sub(current) {
-            Some(remaining) => {
-                drop(stream);
-                thread::sleep(remaining);
-            }
-            None => {
-                if let Err(err) = stream.flush() {
-                    eprintln!("failed to flush: {}", err);
-                }
-                drop(stream);
-                thread::sleep(flush_interval);
-            }
-        }
+    fn drop(&mut self) {
+        let _ = self.flush();
     }
 }

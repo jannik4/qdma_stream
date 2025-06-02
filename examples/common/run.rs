@@ -41,7 +41,6 @@ impl RunOptions {
                     managed::ManagedHostToCardStreamFile::start(&self.device, queue)?,
                     4096 * 2000,
                     4096 * 1000,
-                    std::time::Duration::from_millis(10),
                 )?;
                 Ok((queue, h2c_stream, source.clone()))
             })
