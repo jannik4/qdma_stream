@@ -84,7 +84,8 @@ fn execute_dma_ctl(args: &[&str]) -> Result<()> {
 
     if !output.status.success() {
         anyhow::bail!(
-            "failed to execute dma-ctl: {}\n{}\n{}",
+            "failed to execute dma-ctl: {:?}\nstatus: {}\nstdout: {}\nstderr: {}",
+            args,
             output.status,
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr),
