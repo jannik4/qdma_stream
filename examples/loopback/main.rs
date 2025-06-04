@@ -16,6 +16,7 @@ fn main() -> Result<()> {
 
         read_len: cmd.input.size()?,
         use_raw: cmd.use_raw,
+        use_unmanaged: cmd.use_unmanaged,
         iterations: cmd.iterations,
 
         c2h_queue_start: cmd.queue_start,
@@ -66,6 +67,7 @@ fn main() -> Result<()> {
 struct Cmd {
     device: String,
     use_raw: bool,
+    use_unmanaged: bool,
     queue_start: usize,
     queue_count: usize,
     iterations: usize,
@@ -107,6 +109,7 @@ impl Cmd {
             .opt_value_from_str("--device")?
             .unwrap_or_else(|| DEFAULT_DEVICE.to_string());
         let use_raw = args.contains(["-r", "--raw"]);
+        let use_unmanaged = args.contains(["-u", "--unmanaged"]);
         let queue_start = args
             .opt_value_from_str(["-s", "--queue-start"])?
             .unwrap_or(0);
@@ -143,6 +146,7 @@ impl Cmd {
         Ok(Self {
             device,
             use_raw,
+            use_unmanaged,
             queue_start,
             queue_count,
             iterations,

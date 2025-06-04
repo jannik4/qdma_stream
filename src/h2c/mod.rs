@@ -16,7 +16,7 @@ pub struct HostToCardStream<F: Write> {
 
 impl<F> HostToCardStream<F>
 where
-    F: Write + Send + 'static,
+    F: Write + 'static,
 {
     pub fn new(file: F, capacity: usize, flush_threshold: usize) -> Result<Self> {
         Ok(Self {
