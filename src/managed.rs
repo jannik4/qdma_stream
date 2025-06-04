@@ -9,6 +9,7 @@ pub struct ManagedCardToHostStreamFile {
     device: String,
     queue: usize,
     file: fs::File,
+    stopped: bool,
 }
 
 impl ManagedCardToHostStreamFile {
@@ -24,6 +25,7 @@ impl ManagedCardToHostStreamFile {
             device: device.to_string(),
             queue,
             file,
+            stopped: false,
         })
     }
 
@@ -35,11 +37,15 @@ impl ManagedCardToHostStreamFile {
         self.queue
     }
 
-    pub fn stop(self) -> Result<()> {
+    pub fn stop(mut self) -> Result<()> {
         self.stop_impl()
     }
 
-    fn stop_impl(&self) -> Result<()> {
+    fn stop_impl(&mut self) -> Result<()> {
+        if self.stopped {
+            return Ok(());
+        }
+        self.stopped = true;
         ctl::queue_stop(&self.device, self.queue, ctl::QueueDir::C2h)?;
         ctl::queue_del(&self.device, self.queue, ctl::QueueDir::C2h)?;
         Ok(())
@@ -76,6 +82,7 @@ pub struct ManagedHostToCardStreamFile {
     device: String,
     queue: usize,
     file: fs::File,
+    stopped: bool,
 }
 
 impl ManagedHostToCardStreamFile {
@@ -92,6 +99,7 @@ impl ManagedHostToCardStreamFile {
             device: device.to_string(),
             queue,
             file,
+            stopped: false,
         })
     }
 
@@ -103,11 +111,15 @@ impl ManagedHostToCardStreamFile {
         self.queue
     }
 
-    pub fn stop(self) -> Result<()> {
+    pub fn stop(mut self) -> Result<()> {
         self.stop_impl()
     }
 
-    fn stop_impl(&self) -> Result<()> {
+    fn stop_impl(&mut self) -> Result<()> {
+        if self.stopped {
+            return Ok(());
+        }
+        self.stopped = true;
         ctl::queue_stop(&self.device, self.queue, ctl::QueueDir::H2c)?;
         ctl::queue_del(&self.device, self.queue, ctl::QueueDir::H2c)?;
         Ok(())
