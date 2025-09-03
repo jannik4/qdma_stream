@@ -24,7 +24,7 @@ pub struct RunOptions {
 }
 
 impl RunOptions {
-    pub fn run<SOURCE, SINK>(self, source: SOURCE, sink: SINK) -> Result<()>
+    pub fn run<SOURCE, SINK>(self, source: SOURCE, sink: SINK) -> Result<Vec<SINK>>
     where
         SOURCE: DataSource + Clone + Send + 'static,
         SINK: DataSink + Clone + Send + 'static,
@@ -61,7 +61,7 @@ impl RunOptions {
         sink: SINK,
         c2h_file: impl Fn(&str, usize) -> Result<C2hFile>,
         h2c_file: impl Fn(&str, usize) -> Result<H2cFile>,
-    ) -> Result<()>
+    ) -> Result<Vec<SINK>>
     where
         SOURCE: DataSource + Clone + Send + 'static,
         SINK: DataSink + Clone + Send + 'static,
@@ -90,20 +90,22 @@ impl RunOptions {
 
         // Run test
         println!("----- RUNNING TEST -----");
-        let mut threads = Vec::new();
+        let mut read_threads = Vec::new();
         for (queue, c2h_stream, mut sink) in c2h_queues {
-            threads.push(thread::spawn(move || {
+            read_threads.push(thread::spawn(move || {
                 transfer::read_from_queue(
                     queue,
                     c2h_stream,
                     &mut sink,
                     self.iterations,
                     self.use_raw.then_some(self.read_len),
-                )
+                )?;
+                Ok::<_, anyhow::Error>(sink)
             }));
         }
+        let mut write_threads = Vec::new();
         for (queue, h2c_stream, mut source) in h2c_queues {
-            threads.push(thread::spawn(move || {
+            write_threads.push(thread::spawn(move || {
                 transfer::write_to_queue(
                     queue,
                     h2c_stream,
@@ -115,13 +117,25 @@ impl RunOptions {
         }
 
         // Join threads
-        let results = threads.into_iter().map(|t| t.join()).collect::<Vec<_>>();
+        let read_results = read_threads
+            .into_iter()
+            .map(|t| t.join())
+            .collect::<Vec<_>>();
+        let write_results = write_threads
+            .into_iter()
+            .map(|t| t.join())
+            .collect::<Vec<_>>();
 
         // Check results
-        for res in results {
+        let mut sinks = Vec::new();
+        for res in read_results {
+            let sink = res.unwrap()?;
+            sinks.push(sink);
+        }
+        for res in write_results {
             res.unwrap()?;
         }
 
-        Ok(())
+        Ok(sinks)
     }
 }
