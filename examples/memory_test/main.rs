@@ -22,53 +22,13 @@ fn main() -> Result<()> {
         h2c_queue_count: 1,
     };
 
-    #[rustfmt::skip]
-    let source = vec![
-        // Read 64 bytes from address 0x00000000C0000000
+    let mut cmds = CommandQueue::new();
+    cmds.read(0x0000_0000_C000_0000, 64);
+    cmds.write(0x0000_0000_C000_0000, &(0..64).collect::<Vec<_>>());
+    cmds.read(0x0000_0000_C000_0000, 64);
+    cmds.write(0x0000_0000_C000_0000, &[0; 64]);
 
-        // Bytes to transfer
-        64, 0, 
-        // Address
-        0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00,
-        // R/W flag (0/1)
-        0,
-        // Fill up cmd to 64 bytes
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-
-        // Write 64 bytes at address 0x00000000C0000000
-
-        // Bytes to transfer
-        64, 0, 
-        // Address
-        0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00,
-        // R/W flag (0/1)
-        1,
-        // Fill up cmd to 64 bytes
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-
-        // Write payload
-         0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
-        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-        32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
-        48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
-
-        // Read 64 bytes from address 0x00000000C0000000
-
-        // Bytes to transfer
-        64, 0, 
-        // Address
-        0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00,
-        // R/W flag (0/1)
-        0,
-        // Fill up cmd to 64 bytes
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ];
+    let source = cmds.0;
     let sink = Vec::new();
 
     let results = options.run(source, sink)?;
@@ -97,5 +57,33 @@ impl Cmd {
             device,
             use_unmanaged,
         })
+    }
+}
+
+struct CommandQueue(Vec<u8>);
+
+impl CommandQueue {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    fn read(&mut self, address: u64, len: u16) {
+        assert!(len <= 255); // TODO: allow larger reads
+
+        self.0.extend_from_slice(&u16::to_le_bytes(len)); // btt
+        self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
+        self.0.extend_from_slice(&u8::to_le_bytes(0)); // rw flag
+        self.0.extend_from_slice(&[0u8; 55]); // padding to 64 bytes
+    }
+
+    fn write(&mut self, address: u64, data: &[u8]) {
+        let len = data.len();
+        assert!(len <= 255); // TODO: allow larger writes
+
+        self.0.extend_from_slice(&u16::to_le_bytes(len as u16)); // btt
+        self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
+        self.0.extend_from_slice(&u8::to_le_bytes(1)); // rw flag
+        self.0.extend_from_slice(&[0u8; 55]); // padding to 64 bytes
+        self.0.extend_from_slice(data); // data
     }
 }
