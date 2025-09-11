@@ -23,9 +23,9 @@ fn main() -> Result<()> {
     };
 
     let mut cmds = CommandQueue::new();
-    cmds.write(0x0000_0000_C000_0000, &(0..64).collect::<Vec<_>>());
-    cmds.read(0x0000_0000_C000_0000, 64);
     cmds.write(0x0000_0000_C000_0000, &[0; 64]);
+    cmds.read(0x0000_0000_C000_0000, 64);
+    cmds.write(0x0000_0000_C000_0000, &(0..64).collect::<Vec<_>>());
     cmds.read(0x0000_0000_C000_0000, 64);
 
     let source = cmds.0;
