@@ -23,10 +23,10 @@ fn main() -> Result<()> {
     };
 
     let mut cmds = CommandQueue::new();
-    cmds.read(0x0000_0000_C000_0000, 64);
     cmds.write(0x0000_0000_C000_0000, &(0..64).collect::<Vec<_>>());
     cmds.read(0x0000_0000_C000_0000, 64);
     cmds.write(0x0000_0000_C000_0000, &[0; 64]);
+    cmds.read(0x0000_0000_C000_0000, 64);
 
     let source = cmds.0;
     let sink = Vec::new();
@@ -73,7 +73,8 @@ impl CommandQueue {
         self.0.extend_from_slice(&u16::to_le_bytes(len)); // btt
         self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
         self.0.extend_from_slice(&u8::to_le_bytes(0)); // rw flag
-        self.0.extend_from_slice(&[0u8; 53]); // padding to 64 bytes
+        self.0.extend_from_slice(&u8::to_le_bytes(0)); // wait flag
+        self.0.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
     }
 
     fn write(&mut self, address: u64, data: &[u8]) {
@@ -83,7 +84,8 @@ impl CommandQueue {
         self.0.extend_from_slice(&u16::to_le_bytes(len as u16)); // btt
         self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
         self.0.extend_from_slice(&u8::to_le_bytes(1)); // rw flag
-        self.0.extend_from_slice(&[0u8; 53]); // padding to 64 bytes
+        self.0.extend_from_slice(&u8::to_le_bytes(0)); // wait flag
+        self.0.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
         self.0.extend_from_slice(data); // data
     }
 }
