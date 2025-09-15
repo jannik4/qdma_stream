@@ -7,10 +7,16 @@ use common::{RunOptions, DEFAULT_DEVICE};
 fn main() -> Result<()> {
     let cmd = Cmd::from_env().context("failed to parse args")?;
 
+    let mut queue = CommandQueue::new();
+    queue.write(0x0000_0000_C000_0000, &[0; 64]);
+    queue.read(0x0000_0000_C000_0000, 64);
+    queue.write(0x0000_0000_C000_0000, &(1..=64).collect::<Vec<_>>());
+    queue.read(0x0000_0000_C000_0000, 64);
+
     let options = RunOptions {
         device: cmd.device,
 
-        read_len: 128,
+        read_len: queue.read_bytes,
         use_raw: true,
         use_unmanaged: cmd.use_unmanaged,
         iterations: 1,
@@ -22,13 +28,7 @@ fn main() -> Result<()> {
         h2c_queue_count: 1,
     };
 
-    let mut cmds = CommandQueue::new();
-    cmds.write(0x0000_0000_C000_0000, &[0; 64]);
-    cmds.read(0x0000_0000_C000_0000, 64);
-    cmds.write(0x0000_0000_C000_0000, &(1..=64).collect::<Vec<_>>());
-    cmds.read(0x0000_0000_C000_0000, 64);
-
-    let source = cmds.0;
+    let source = queue.commands;
     let sink = Vec::new();
 
     let results = options.run(source, sink)?;
@@ -60,22 +60,31 @@ impl Cmd {
     }
 }
 
-struct CommandQueue(Vec<u8>);
+struct CommandQueue {
+    commands: Vec<u8>,
+    read_bytes: usize,
+}
 
 impl CommandQueue {
     fn new() -> Self {
-        Self(Vec::new())
+        Self {
+            commands: Vec::new(),
+            read_bytes: 0,
+        }
     }
 
     fn read(&mut self, mut address: u64, mut len: u64) {
+        self.read_bytes += len as usize;
+
         while len > 0 {
             let btt = u64::min(len, u16::MAX as u64);
 
-            self.0.extend_from_slice(&u16::to_le_bytes(btt as u16)); // btt
-            self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
-            self.0.extend_from_slice(&u8::to_le_bytes(0)); // rw flag
-            self.0.extend_from_slice(&u8::to_le_bytes(0)); // wait flag
-            self.0.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
+            self.commands
+                .extend_from_slice(&u16::to_le_bytes(btt as u16)); // btt
+            self.commands.extend_from_slice(&u64::to_le_bytes(address)); // addr
+            self.commands.extend_from_slice(&u8::to_le_bytes(0)); // rw flag
+            self.commands.extend_from_slice(&u8::to_le_bytes(1)); // wait flag
+            self.commands.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
 
             len -= btt;
             address += btt;
@@ -86,12 +95,13 @@ impl CommandQueue {
         for chunk in data.chunks(u16::MAX as usize) {
             let btt = chunk.len() as u64;
 
-            self.0.extend_from_slice(&u16::to_le_bytes(btt as u16)); // btt
-            self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
-            self.0.extend_from_slice(&u8::to_le_bytes(1)); // rw flag
-            self.0.extend_from_slice(&u8::to_le_bytes(0)); // wait flag
-            self.0.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
-            self.0.extend_from_slice(data); // data
+            self.commands
+                .extend_from_slice(&u16::to_le_bytes(btt as u16)); // btt
+            self.commands.extend_from_slice(&u64::to_le_bytes(address)); // addr
+            self.commands.extend_from_slice(&u8::to_le_bytes(1)); // rw flag
+            self.commands.extend_from_slice(&u8::to_le_bytes(1)); // wait flag
+            self.commands.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
+            self.commands.extend_from_slice(data); // data
 
             address += btt;
         }
