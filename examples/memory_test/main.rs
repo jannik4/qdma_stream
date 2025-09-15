@@ -8,10 +8,16 @@ fn main() -> Result<()> {
     let cmd = Cmd::from_env().context("failed to parse args")?;
 
     let mut queue = CommandQueue::new();
-    queue.write(0x0000_0000_C000_0000, &[0; 64]);
+
+    // queue.write(0x0000_0000_C000_0000, &[0; 4096]);
+    // queue.read(0x0000_0000_C000_0000, 4096);
+    // queue.write(0x0000_0000_C000_0000, &[1; 2 * 4096]);
+    // queue.read(0x0000_0000_C000_0000, 2 * 4096);
+
+    queue.write(0x0000_0000_C000_0000, &[0; 256]);
     queue.read(0x0000_0000_C000_0000, 64);
-    queue.write(0x0000_0000_C000_0000, &(1..=64).collect::<Vec<_>>());
-    queue.read(0x0000_0000_C000_0000, 64);
+    queue.write(0x0000_0000_C000_0000, &(0..=255).collect::<Vec<_>>());
+    queue.read(0x0000_0000_C000_0080, 128);
 
     let options = RunOptions {
         device: cmd.device,
@@ -33,7 +39,7 @@ fn main() -> Result<()> {
 
     let results = options.run(source, sink)?;
 
-    dbg!(results);
+    println!("{:?}", results);
 
     Ok(())
 }
