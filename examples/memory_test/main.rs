@@ -25,7 +25,7 @@ fn main() -> Result<()> {
     let mut cmds = CommandQueue::new();
     cmds.write(0x0000_0000_C000_0000, &[0; 64]);
     cmds.read(0x0000_0000_C000_0000, 64);
-    cmds.write(0x0000_0000_C000_0000, &(0..64).collect::<Vec<_>>());
+    cmds.write(0x0000_0000_C000_0000, &(1..=64).collect::<Vec<_>>());
     cmds.read(0x0000_0000_C000_0000, 64);
 
     let source = cmds.0;
@@ -67,25 +67,33 @@ impl CommandQueue {
         Self(Vec::new())
     }
 
-    fn read(&mut self, address: u64, len: u16) {
-        assert!(len <= 255); // TODO: allow larger reads
+    fn read(&mut self, mut address: u64, mut len: u64) {
+        while len > 0 {
+            let btt = u64::min(len, u16::MAX as u64);
 
-        self.0.extend_from_slice(&u16::to_le_bytes(len)); // btt
-        self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
-        self.0.extend_from_slice(&u8::to_le_bytes(0)); // rw flag
-        self.0.extend_from_slice(&u8::to_le_bytes(0)); // wait flag
-        self.0.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
+            self.0.extend_from_slice(&u16::to_le_bytes(btt as u16)); // btt
+            self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
+            self.0.extend_from_slice(&u8::to_le_bytes(0)); // rw flag
+            self.0.extend_from_slice(&u8::to_le_bytes(0)); // wait flag
+            self.0.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
+
+            len -= btt;
+            address += btt;
+        }
     }
 
-    fn write(&mut self, address: u64, data: &[u8]) {
-        let len = data.len();
-        assert!(len <= 255); // TODO: allow larger writes
+    fn write(&mut self, mut address: u64, data: &[u8]) {
+        for chunk in data.chunks(u16::MAX as usize) {
+            let btt = chunk.len() as u64;
 
-        self.0.extend_from_slice(&u16::to_le_bytes(len as u16)); // btt
-        self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
-        self.0.extend_from_slice(&u8::to_le_bytes(1)); // rw flag
-        self.0.extend_from_slice(&u8::to_le_bytes(0)); // wait flag
-        self.0.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
-        self.0.extend_from_slice(data); // data
+            self.0.extend_from_slice(&u16::to_le_bytes(btt as u16)); // btt
+            self.0.extend_from_slice(&u64::to_le_bytes(address)); // addr
+            self.0.extend_from_slice(&u8::to_le_bytes(1)); // rw flag
+            self.0.extend_from_slice(&u8::to_le_bytes(0)); // wait flag
+            self.0.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
+            self.0.extend_from_slice(data); // data
+
+            address += btt;
+        }
     }
 }
