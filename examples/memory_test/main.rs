@@ -7,17 +7,18 @@ use common::{RunOptions, DEFAULT_DEVICE};
 fn main() -> Result<()> {
     let cmd = Cmd::from_env().context("failed to parse args")?;
 
-    let mut queue = CommandQueue::new();
+    // 0xC000_0000
+    let mut queue = CommandQueue::new(0x40_0000_0000);
 
-    // queue.write(0x0000_0000_C000_0000, &[0; 4096]);
-    // queue.read(0x0000_0000_C000_0000, 4096);
-    // queue.write(0x0000_0000_C000_0000, &[1; 2 * 4096]);
-    // queue.read(0x0000_0000_C000_0000, 2 * 4096);
+    // queue.write(0x0, &[0; 4096]);
+    // queue.read(0x0, 4096);
+    // queue.write(0x0, &[1; 2 * 4096]);
+    // queue.read(0x0, 2 * 4096);
 
-    queue.write(0x0000_0000_C000_0000, &[0; 256]);
-    queue.read(0x0000_0000_C000_0000, 64);
-    queue.write(0x0000_0000_C000_0000, &(0..=255).collect::<Vec<_>>());
-    queue.read(0x0000_0000_C000_0080, 128);
+    queue.write(0x0, &[0; 256]);
+    queue.read(0x0, 64);
+    queue.write(0x0, &(0..=255).collect::<Vec<_>>());
+    queue.read(0x80, 128);
 
     let options = RunOptions {
         device: cmd.device,
@@ -67,19 +68,22 @@ impl Cmd {
 }
 
 struct CommandQueue {
+    base_address: u64,
     commands: Vec<u8>,
     read_bytes: usize,
 }
 
 impl CommandQueue {
-    fn new() -> Self {
+    fn new(base_address: u64) -> Self {
         Self {
+            base_address,
             commands: Vec::new(),
             read_bytes: 0,
         }
     }
 
     fn read(&mut self, mut address: u64, mut len: u64) {
+        address += self.base_address;
         self.read_bytes += len as usize;
 
         while len > 0 {
@@ -98,6 +102,8 @@ impl CommandQueue {
     }
 
     fn write(&mut self, mut address: u64, data: &[u8]) {
+        address += self.base_address;
+
         for chunk in data.chunks(u16::MAX as usize) {
             let btt = chunk.len() as u64;
 
