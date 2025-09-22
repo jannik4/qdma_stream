@@ -4,6 +4,8 @@ mod common;
 use anyhow::{Context, Result};
 use common::{RunOptions, DEFAULT_DEVICE};
 
+const CMD_SIZE: usize = 32;
+
 fn main() -> Result<()> {
     let cmd = Cmd::from_env().context("failed to parse args")?;
 
@@ -94,7 +96,7 @@ impl CommandQueue {
             self.commands.extend_from_slice(&u64::to_le_bytes(address)); // addr
             self.commands.extend_from_slice(&u8::to_le_bytes(0)); // rw flag
             self.commands.extend_from_slice(&u8::to_le_bytes(1)); // wait flag
-            self.commands.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
+            self.commands.extend_from_slice(&[0u8; CMD_SIZE - 12]); // padding to CMD_SIZE bytes
 
             len -= btt;
             address += btt;
@@ -112,7 +114,7 @@ impl CommandQueue {
             self.commands.extend_from_slice(&u64::to_le_bytes(address)); // addr
             self.commands.extend_from_slice(&u8::to_le_bytes(1)); // rw flag
             self.commands.extend_from_slice(&u8::to_le_bytes(1)); // wait flag
-            self.commands.extend_from_slice(&[0u8; 52]); // padding to 64 bytes
+            self.commands.extend_from_slice(&[0u8; CMD_SIZE - 12]); // padding to CMD_SIZE bytes
             self.commands.extend_from_slice(data); // data
 
             address += btt;
