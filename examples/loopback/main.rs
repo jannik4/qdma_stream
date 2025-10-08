@@ -31,15 +31,24 @@ fn main() -> Result<()> {
             match $output {
                 Output::CountBytes => {
                     let sink = DataSinkCountBytes::new();
-                    $options.run($source, sink)?;
+                    let output = $options.run($source, sink)?;
+                    if cmd.debug_output {
+                        println!("{:?}", output);
+                    }
                 }
                 Output::Buffer => {
                     let sink = Vec::with_capacity($options.read_len);
-                    $options.run($source, sink)?;
+                    let output = $options.run($source, sink)?;
+                    if cmd.debug_output {
+                        println!("{:?}", output);
+                    }
                 }
                 Output::File { path } => {
                     let sink = Arc::new(std::fs::File::create(path)?);
-                    $options.run($source, sink)?;
+                    let output = $options.run($source, sink)?;
+                    if cmd.debug_output {
+                        println!("{:?}", output);
+                    }
                 }
             }
         };
@@ -71,6 +80,7 @@ struct Cmd {
     queue_start: usize,
     queue_count: usize,
     iterations: usize,
+    debug_output: bool,
     input: Input,
     output: Output,
 }
@@ -119,6 +129,7 @@ impl Cmd {
         let iterations = args
             .opt_value_from_str(["-i", "--iterations"])?
             .unwrap_or(1);
+        let debug_output = args.contains("--debug-output");
 
         let input = match args.opt_value_from_str(["-f", "--file"])? {
             Some(file) => Input::File { path: file },
@@ -150,6 +161,7 @@ impl Cmd {
             queue_start,
             queue_count,
             iterations,
+            debug_output,
             input,
             output,
         })
