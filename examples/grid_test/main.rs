@@ -19,7 +19,7 @@ fn main() -> Result<()> {
             read_len: 0,
             use_raw: true,
             use_unmanaged: cmd.use_unmanaged,
-            iterations: 1,
+            iterations: 3,
 
             c2h_queue_start: 0,
             c2h_queue_count: 0,
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
         };
 
         let mut source = vec![0u8; 64];
-        source[0] = 1;
+        source[0] = 10;
         let sink = Vec::new();
 
         let _results = options.run(source, sink)?;
@@ -44,7 +44,7 @@ fn main() -> Result<()> {
             read_len: 64,
             use_raw: true,
             use_unmanaged: cmd.use_unmanaged,
-            iterations: 1,
+            iterations: 3,
 
             c2h_queue_start: q,
             c2h_queue_count: 1,
