@@ -28,7 +28,7 @@ fn main() -> Result<()> {
             h2c_queue_count: 1,
         };
 
-        let mut source = vec![0u8; 64];
+        let mut source = vec![0u8; 32];
         source[0] = 10;
         let sink = Vec::new();
 
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
         let options = RunOptions {
             device: cmd.device,
 
-            read_len: 64,
+            read_len: 32,
             use_raw: true,
             use_unmanaged: cmd.use_unmanaged,
             iterations: 3,
