@@ -6,6 +6,7 @@ use common::{RunOptions, DEFAULT_DEVICE};
 
 fn main() -> Result<()> {
     let cmd = Cmd::from_env().context("failed to parse args")?;
+    let iterations = 128;
 
     // 0, 1, 6
     // -->
@@ -19,7 +20,7 @@ fn main() -> Result<()> {
             read_len: 0,
             use_raw: true,
             use_unmanaged: cmd.use_unmanaged,
-            iterations: 3,
+            iterations,
 
             c2h_queue_start: 0,
             c2h_queue_count: 0,
@@ -44,7 +45,7 @@ fn main() -> Result<()> {
             read_len: 32,
             use_raw: true,
             use_unmanaged: cmd.use_unmanaged,
-            iterations: 128,
+            iterations,
 
             c2h_queue_start: q,
             c2h_queue_count: 1,
