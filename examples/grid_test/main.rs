@@ -44,7 +44,7 @@ fn main() -> Result<()> {
             read_len: 32,
             use_raw: true,
             use_unmanaged: cmd.use_unmanaged,
-            iterations: 3,
+            iterations: 128,
 
             c2h_queue_start: q,
             c2h_queue_count: 1,
