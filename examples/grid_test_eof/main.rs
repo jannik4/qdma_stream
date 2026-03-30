@@ -30,9 +30,7 @@ fn main() -> Result<()> {
 
         let mut source = vec![0u8; 64];
         source[0] = 10;
-        for i in 32..64 {
-            source[i] = u8::MAX;
-        }
+        source[35] = 0b10000000;
         let sink = Vec::new();
 
         let _results = options.run(source, sink)?;
