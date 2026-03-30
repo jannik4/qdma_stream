@@ -28,8 +28,11 @@ fn main() -> Result<()> {
             h2c_queue_count: 1,
         };
 
-        let mut source = vec![0u8; 32];
+        let mut source = vec![0u8; 64];
         source[0] = 10;
+        for i in 32..64 {
+            source[i] = u8::MAX;
+        }
         let sink = Vec::new();
 
         let _results = options.run(source, sink)?;
