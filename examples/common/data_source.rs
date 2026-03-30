@@ -39,7 +39,6 @@ where
     {
         let slice = self.as_ref();
         stream.write_all(slice)?;
-        stream.flush()?;
         Ok(slice.len())
     }
 }
@@ -83,7 +82,6 @@ where
         F: Write,
     {
         let bytes = io::copy(&mut self.reader, stream)?;
-        stream.flush()?;
         Ok(bytes as usize)
     }
 }
@@ -131,7 +129,6 @@ impl DataSource for DataSourceZeroes {
             num_bytes_left -= PACKET_SIZE;
         }
         stream.write_all(&self.zero_buf[..num_bytes_left])?;
-        stream.flush()?;
         Ok(self.num_bytes)
     }
 }
